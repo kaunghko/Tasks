@@ -39,6 +39,14 @@ struct TaskFilterTests {
         #expect(titles(.all, search: "DUE") == ["Overdue", "Someday"])
     }
 
+    @Test func homeListPicksMostSpecificFilter() {
+        #expect(TaskFilter.home(for: overdue, now: now) == .today)
+        #expect(TaskFilter.home(for: dueToday, now: now) == .today)
+        #expect(TaskFilter.home(for: later, now: now) == .upcoming)
+        #expect(TaskFilter.home(for: someday, now: now) == .all)
+        #expect(TaskFilter.home(for: finished, now: now) == .completed)
+    }
+
     @Test func overdueIgnoresDoneTasks() {
         #expect(overdue.isOverdue(now: now))
         #expect(!dueToday.isOverdue(now: now))

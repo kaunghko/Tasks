@@ -106,8 +106,9 @@ struct SearchPaletteView: View {
             ScrollView {
                 LazyVStack(spacing: Self.rowSpacing) {
                     ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
+                        // No `.id(index)` here: it would override the ForEach identity, so rows at the
+                        // same position kept showing the previous results' titles after typing.
                         row(result, isHighlighted: index == highlighted)
-                            .id(index)
                             .onTapGesture { onChoose(result) }
                     }
                 }
@@ -115,7 +116,8 @@ struct SearchPaletteView: View {
             }
             .frame(height: min(contentHeight, 340))
             .onChange(of: highlighted) { _, index in
-                proxy.scrollTo(index)
+                guard results.indices.contains(index) else { return }
+                proxy.scrollTo(results[index].id)
             }
         }
     }
@@ -181,7 +183,11 @@ struct SearchPaletteView: View {
     private func detail(for result: PaletteResult) -> String? {
         switch result {
         case .view(let view): view.subtitle
-        case .task(let task): task.dueLabel
+        case .task(let task):
+            // The list the task lives in, then its date: "Upcoming · Sep 20".
+            [TaskFilter.home(for: task).title, task.due?.formatted(.dateTime.month(.abbreviated).day())]
+                .compactMap { $0 }
+                .joined(separator: " · ")
         }
     }
 

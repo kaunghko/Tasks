@@ -40,6 +40,12 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
+    /// The most specific list a task shows up in: Completed, Today (with overdue), Upcoming,
+    /// or All for open tasks without a due date.
+    static func home(for task: TaskItem, now: Date = .now, calendar: Calendar = .current) -> TaskFilter {
+        [.completed, .today, .upcoming].first { $0.includes(task, now: now, calendar: calendar) } ?? .all
+    }
+
     /// Filters, searches (title and notes) and sorts tasks for display.
     func apply(
         to tasks: [TaskItem],
