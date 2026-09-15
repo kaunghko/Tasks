@@ -23,7 +23,7 @@ struct TaskRow: View {
 
             Spacer()
 
-            if let dueLabel {
+            if let dueLabel = task.dueLabel {
                 Text(dueLabel)
                     .font(.caption)
                     .monospacedDigit()
@@ -31,13 +31,5 @@ struct TaskRow: View {
             }
         }
         .padding(.vertical, 2)
-    }
-
-    private var dueLabel: String? {
-        guard let due = task.due else { return nil }
-        let calendar = Calendar.current
-        if calendar.isDateInToday(due) { return "Today" }
-        if calendar.isDateInTomorrow(due) { return "Tomorrow" }
-        return due.formatted(.dateTime.month(.abbreviated).day())
     }
 }

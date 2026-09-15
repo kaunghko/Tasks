@@ -59,6 +59,15 @@ struct TaskItem: Codable, Identifiable, Hashable {
         guard !done, let due else { return false }
         return calendar.startOfDay(for: due) < calendar.startOfDay(for: now)
     }
+
+    /// "Today", "Tomorrow" or a short date such as "Sep 22".
+    var dueLabel: String? {
+        guard let due else { return nil }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(due) { return "Today" }
+        if calendar.isDateInTomorrow(due) { return "Tomorrow" }
+        return due.formatted(.dateTime.month(.abbreviated).day())
+    }
 }
 
 // Key-path friendly accessors so views can bind to them directly (`$task.hasDueDate`).

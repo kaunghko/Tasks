@@ -15,18 +15,17 @@ struct CalendarView: View {
     @Binding var tasks: [TaskItem]
     @Binding var selection: Set<TaskItem.ID>
     @Binding var visibleDate: Date
-    let searchText: String
+    @Binding var mode: CalendarMode
     let onAdd: (Date?) -> Void
     let onReschedule: (Set<TaskItem.ID>, Date?) -> Void
     let onToggleDone: (Set<TaskItem.ID>) -> Void
     let onDelete: (Set<TaskItem.ID>) -> Void
 
-    @SceneStorage("calendarMode") private var mode: CalendarMode = .month
     @SceneStorage("calendarTrayShown") private var isTrayShown = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        let visible = TaskFilter.all.apply(to: tasks, search: searchText)
+        let visible = TaskFilter.all.apply(to: tasks)
         let byDay = CalendarGrid.tasksByDay(visible)
 
         VStack(spacing: 0) {

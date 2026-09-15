@@ -14,7 +14,11 @@ Built with Swift and SwiftUI only. It has zero third-party dependencies.
   - Drag a task to another day to reschedule it.
   - Double-click a day to add a task due that day.
   - Show a "No Due Date" tray. Drag tasks from it onto a day, or drop a task on it to clear the due date.
-- Search across titles and notes
+- ⌘K search palette that jumps to tasks and views:
+  - Typing searches task titles, task notes and views together.
+  - Tab limits the search to tasks.
+  - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
+  - Backspace in an empty field goes back to searching everything.
 - Inspector for editing the title, notes and due date
 - Autosave, undo/redo and File ▸ Revert To, all provided by the macOS document system
 
@@ -22,6 +26,9 @@ Built with Swift and SwiftUI only. It has zero third-party dependencies.
 |---|---|
 | ⌘N | New task file |
 | ⇧⌘N | New task |
+| ⌘K | Search palette |
+| Tab / @ | Search tasks / views (in the palette) |
+| ↑ ↓ ↩ Esc | Move, open, close (in the palette) |
 | Space | Toggle done on the selected tasks |
 | ⌫ | Delete the selected tasks |
 | ⌘← / ⌘→ | Previous / next month or week (Calendar) |
@@ -72,10 +79,13 @@ Tasks/
   TasksApp.swift              DocumentGroup scene
   Document/TaskDocument.swift FileDocument: reads and writes JSON
   Model/                      TaskFile, TaskItem (tolerant Codable), TaskFilter (filter + sort),
-                              CalendarGrid (month/week date math)
+                              CalendarGrid (month/week date math),
+                              SearchPalette (query parsing + result ranking)
   Views/                      ContentView (split view + inspector), TaskRow, TaskInspector
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray
-TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid
+  Views/Search/               SearchPaletteView (⌘K palette)
+TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,
+                              palette search
 ```
 
 All edits go through the document binding. That binding records undo and marks the file dirty, so there is no separate state store.
