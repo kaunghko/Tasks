@@ -17,5 +17,13 @@
 			</array>
 		</dict>
 	</array>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
+	<key>SUFeedURL</key>
+	<string>https://raw.githubusercontent.com/kaunghko/Tasks/main/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>Le+8q9A2WgDx5fWUuBG8oTiP9Bm0RV6W4p3P8k35U5Q=</string>
 </dict>
 </plist>

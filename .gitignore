@@ -3,3 +3,15 @@ build/
 DerivedData/
 xcuserdata/
 *.xcuserstate
+
+# Release output and anything secret. Signing keys and the notarization password
+# live in the macOS Keychain, never in this repo.
+*.xcarchive
+*.zip
+*.dmg
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+*private*key*
+.env*

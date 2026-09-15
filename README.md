@@ -4,7 +4,7 @@ A native macOS task manager that renders a plain `.json` file.
 
 The file is the source of truth, the way Obsidian treats `.md` files. There is no database and no account. To sync or back up tasks, keep the file somewhere that already does that: iCloud Drive, Dropbox, or a git repo.
 
-Built with Swift and SwiftUI only. It has zero third-party dependencies.
+Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-project.org), which handles in-app updates.
 
 ## Features
 
@@ -79,8 +79,6 @@ When you edit a file in the app and save it, a few things are not kept:
 - Unknown fields.
 - Due dates that can't be parsed.
 
-See [`Samples/tasks.json`](Samples/tasks.json) for an example.
-
 ## Architecture
 
 ```
@@ -95,6 +93,9 @@ Tasks/
                               NotesEditor (subtask checklist + notes), WindowKeyMonitor
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray
   Views/Search/               SearchPaletteView (⌘K palette)
+  Updates/                    CheckForUpdatesView (Sparkle menu item)
+  AppIcon.icon                Icon Composer app icon
+scripts/                      release.sh (sign, notarize, publish), ExportOptions.plist
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,
                               palette search
 ```
@@ -109,3 +110,9 @@ Requires Xcode 26 or later and macOS 26 or later.
 open Tasks.xcodeproj          # then ⌘R
 xcodebuild test -scheme Tasks -destination 'platform=macOS'
 ```
+
+## Install
+
+Download `Tasks-x.y.z.zip` from [Releases](https://github.com/kaunghko/Tasks/releases), unzip it, and drag `Tasks.app` into `/Applications`. Builds are signed with Developer ID and notarized by Apple, so they open without warnings. After that, the app checks for updates once a day and can install them itself. You can also use Tasks ▸ Check for Updates….
+
+Maintainers: see [RELEASING.md](RELEASING.md).
