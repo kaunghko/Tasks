@@ -1,0 +1,14 @@
+<?xml version="1.0" standalone="yes"?>
+<rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+    <channel>
+        <title>Tasks</title>
+        <item>
+            <title>0.2.0</title>
+            <pubDate>Wed, 16 Sep 2026 03:02:52 +0900</pubDate>
+            <sparkle:version>2</sparkle:version>
+            <sparkle:shortVersionString>0.2.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kaunghko/Tasks/releases/download/v0.2.0/Tasks-0.2.0.zip" length="3726215" type="application/octet-stream" sparkle:edSignature="7oD3MbHKjUxdvAcQ0pociQLYW7NmcB4XMz3x1m39sQJKi95YNVKAdoXOlNMd3MnuMCwDSSAzB55JKGrcllB9BQ=="/>
+        </item>
+    </channel>
+</rss>
