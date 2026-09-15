@@ -15,3 +15,6 @@ xcuserdata/
 *.mobileprovision
 *private*key*
 .env*
+
+# Personal notes that stay on this Mac.
+*.local.md
