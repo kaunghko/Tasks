@@ -9,6 +9,8 @@ struct CalendarActions {
     var drop: ([String], Date?) -> Bool
     var toggleDone: (Set<TaskItem.ID>) -> Void
     var delete: (Set<TaskItem.ID>) -> Void
+    /// Whether a task's details popover is open; setting false closes it.
+    var detailsShown: (TaskItem.ID) -> Binding<Bool>
 }
 
 struct CalendarView: View {
@@ -16,6 +18,7 @@ struct CalendarView: View {
     @Binding var selection: Set<TaskItem.ID>
     @Binding var visibleDate: Date
     @Binding var mode: CalendarMode
+    @Binding var detailTaskID: TaskItem.ID?
     let onAdd: (Date?) -> Void
     let onReschedule: (Set<TaskItem.ID>, Date?) -> Void
     let onToggleDone: (Set<TaskItem.ID>) -> Void
@@ -118,6 +121,7 @@ struct CalendarView: View {
                     selection.formSymmetricDifference([id])
                 } else {
                     selection = [id]
+                    detailTaskID = id
                 }
                 isFocused = true
             },
@@ -135,7 +139,17 @@ struct CalendarView: View {
                 return true
             },
             toggleDone: onToggleDone,
-            delete: onDelete
+            delete: onDelete,
+            detailsShown: { id in
+                Binding(
+                    get: { detailTaskID == id },
+                    set: { isShown in
+                        if !isShown, detailTaskID == id {
+                            detailTaskID = nil
+                        }
+                    }
+                )
+            }
         )
     }
 }

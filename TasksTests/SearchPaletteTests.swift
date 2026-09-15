@@ -29,6 +29,12 @@ struct SearchPaletteTests {
         #expect(PaletteQuery.parse("  milk ") == PaletteQuery(scope: .mixed, term: "milk"))
     }
 
+    @Test func tabTogglesTaskScope() {
+        #expect(PaletteScope.mixed.afterTab == .tasks)
+        #expect(PaletteScope.tasks.afterTab == .mixed)
+        #expect(PaletteScope.views.afterTab == .tasks)
+    }
+
     @Test(arguments: [("daily", "Today"), ("day", "Today"), ("week", "Week"), ("monthly", "Month"), ("done", "Completed")])
     func aliasesFindViews(term: String, view: String) {
         #expect(titles(term, scope: .views).first == view)

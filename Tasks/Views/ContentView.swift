@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
@@ -5,11 +6,12 @@ struct ContentView: View {
 
     @State private var destination: AppDestination? = .filter(.all)
     @State private var selection: Set<TaskItem.ID> = []
-    @State private var isInspectorPresented = true
+    /// The task whose details popover is open.
+    @State private var detailTaskID: TaskItem.ID?
     @State private var isPaletteShown = false
     @State private var calendarDate = Date.now
     @SceneStorage("calendarMode") private var calendarMode: CalendarMode = .month
-    /// A task chosen in the palette that the list should scroll to.
+    /// A task the list should scroll to and then open details for.
     @State private var revealID: TaskItem.ID?
 
     private var currentFilter: TaskFilter {
@@ -56,15 +58,6 @@ struct ContentView: View {
                         .keyboardShortcut("k", modifiers: .command)
                         .help("Search tasks and views (⌘K)")
                     }
-                    ToolbarItem {
-                        Button("Inspector", systemImage: "sidebar.trailing") {
-                            isInspectorPresented.toggle()
-                        }
-                    }
-                }
-                .inspector(isPresented: $isInspectorPresented) {
-                    inspector
-                        .inspectorColumnWidth(min: 240, ideal: 280)
                 }
         }
         .overlay {
@@ -86,6 +79,7 @@ struct ContentView: View {
                 selection: $selection,
                 visibleDate: $calendarDate,
                 mode: $calendarMode,
+                detailTaskID: $detailTaskID,
                 onAdd: insertTask(due:),
                 onReschedule: reschedule,
                 onToggleDone: toggleDone,
@@ -104,6 +98,16 @@ struct ContentView: View {
             List(selection: $selection) {
                 ForEach(tasks) { task in
                     TaskRow(task: $document.file.tasks[id: task.id])
+                        .contentShape(.rect)
+                        // Simultaneous, so the List still handles selection and ⌘/⇧-clicks.
+                        .simultaneousGesture(TapGesture().onEnded {
+                            if !NSEvent.modifierFlags.contains(.command), !NSEvent.modifierFlags.contains(.shift) {
+                                detailTaskID = task.id
+                            }
+                        })
+                        .popover(isPresented: detailsShown(task.id), arrowEdge: .trailing) {
+                            TaskDetailView(task: $document.file.tasks[id: task.id])
+                        }
                         .contextMenu {
                             Button(task.done ? "Mark as Not Done" : "Mark as Done") {
                                 toggleDone([task.id])
@@ -119,7 +123,21 @@ struct ContentView: View {
                 guard let id = revealID else { return }
                 await Task.yield()
                 proxy.scrollTo(id, anchor: .center)
+                // Let the row settle on screen before a popover attaches to it.
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { return }
+                detailTaskID = id
                 revealID = nil
+            }
+            .onChange(of: selection) { _, newValue in
+                // Backs up the tap gesture: a plain click that selects one task opens its details.
+                // Programmatic selections (new task, palette) go through `revealID` instead.
+                guard revealID == nil, newValue.count == 1, let id = newValue.first,
+                      let event = NSApp.currentEvent,
+                      event.type == .leftMouseDown || event.type == .leftMouseUp,
+                      event.modifierFlags.isDisjoint(with: [.command, .shift])
+                else { return }
+                detailTaskID = id
             }
         }
         .overlay {
@@ -133,25 +151,33 @@ struct ContentView: View {
         }
     }
 
-    // MARK: - Inspector
+    private func detailsShown(_ id: TaskItem.ID) -> Binding<Bool> {
+        Binding(
+            get: { detailTaskID == id },
+            set: { isShown in
+                if !isShown, detailTaskID == id {
+                    detailTaskID = nil
+                }
+            }
+        )
+    }
 
-    @ViewBuilder
-    private var inspector: some View {
-        if selection.count == 1, let id = selection.first,
-           document.file.tasks.contains(where: { $0.id == id }) {
-            TaskInspector(task: $document.file.tasks[id: id])
+    /// Opens a task's popover once its row or chip is on screen.
+    private func openDetails(_ id: TaskItem.ID) {
+        if destination == .calendar {
+            Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                detailTaskID = id
+            }
         } else {
-            ContentUnavailableView(
-                selection.isEmpty ? "No Selection" : "\(selection.count) Tasks Selected",
-                systemImage: "checklist"
-            )
+            revealID = id
         }
     }
 
     // MARK: - Actions
     // Each action assigns to `document` once, so it becomes a single undo step.
 
-    /// Opens a view, or selects a task where it can be seen.
+    /// Opens a view, or selects a task where it can be seen and opens its details.
     private func choose(_ result: PaletteResult) {
         isPaletteShown = false
         switch result {
@@ -163,8 +189,11 @@ struct ContentView: View {
         case .task(let task):
             switch destination {
             case .calendar:
+                // An undated task has no chip to attach the popover to, so show it in All.
                 if let due = task.due {
                     calendarDate = due
+                } else {
+                    destination = .filter(.all)
                 }
             case .filter(let filter) where filter.includes(task):
                 break
@@ -172,8 +201,7 @@ struct ContentView: View {
                 destination = .filter(.all)
             }
             selection = [task.id]
-            isInspectorPresented = true
-            revealID = task.id
+            openDetails(task.id)
         }
     }
 
@@ -198,11 +226,14 @@ struct ContentView: View {
         let task = TaskItem(title: "New Task", due: due)
         document.file.tasks.append(task)
         selection = [task.id]
-        isInspectorPresented = true
+        openDetails(task.id)
     }
 
     private func delete(_ ids: Set<TaskItem.ID>) {
         guard !ids.isEmpty else { return }
+        if let detailTaskID, ids.contains(detailTaskID) {
+            self.detailTaskID = nil
+        }
         document.file.tasks.removeAll { ids.contains($0.id) }
         selection.subtract(ids)
     }

@@ -18,8 +18,8 @@ Built with Swift and SwiftUI only. It has zero third-party dependencies.
   - Typing searches task titles, task notes and views together.
   - Tab limits the search to tasks.
   - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
-  - Backspace in an empty field goes back to searching everything.
-- Inspector for editing the title, notes and due date
+  - To search everything again, press Backspace in an empty field, press Tab again, or click ✕ on the scope token. Esc also removes a scope before it closes the palette.
+- Click a task to edit its title, notes and due date in a popover
 - Autosave, undo/redo and File ▸ Revert To, all provided by the macOS document system
 
 | Shortcut | Action |
@@ -81,7 +81,7 @@ Tasks/
   Model/                      TaskFile, TaskItem (tolerant Codable), TaskFilter (filter + sort),
                               CalendarGrid (month/week date math),
                               SearchPalette (query parsing + result ranking)
-  Views/                      ContentView (split view + inspector), TaskRow, TaskInspector
+  Views/                      ContentView (split view), TaskRow, TaskDetailView (popover)
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray
   Views/Search/               SearchPaletteView (⌘K palette)
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,

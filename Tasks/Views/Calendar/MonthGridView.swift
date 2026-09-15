@@ -116,14 +116,19 @@ private struct DayCell: View {
                 .font(.headline)
                 .padding(.bottom, 4)
             ForEach(dayTasks) { task in
-                chip(task)
+                chip(task, inMorePopover: true)
             }
         }
         .padding(10)
         .frame(width: 240)
     }
 
-    private func chip(_ task: TaskItem) -> some View {
-        TaskChip(task: $tasks[id: task.id], isSelected: selection.contains(task.id), actions: actions)
+    private func chip(_ task: TaskItem, inMorePopover: Bool = false) -> some View {
+        var chipActions = actions
+        if isShowingAll, !inMorePopover {
+            // The "more" popover shows this task too; only that copy presents its details.
+            chipActions.detailsShown = { _ in .constant(false) }
+        }
+        return TaskChip(task: $tasks[id: task.id], isSelected: selection.contains(task.id), actions: chipActions)
     }
 }

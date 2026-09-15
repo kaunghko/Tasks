@@ -1,6 +1,7 @@
 import SwiftUI
 
-struct TaskInspector: View {
+/// Title, status, due date and notes for one task, shown in a popover next to it.
+struct TaskDetailView: View {
     @Binding var task: TaskItem
 
     var body: some View {
@@ -32,5 +33,6 @@ struct TaskInspector: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: 300, height: 420)
     }
 }

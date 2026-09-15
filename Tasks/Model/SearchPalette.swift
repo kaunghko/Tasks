@@ -17,6 +17,11 @@ enum PaletteScope: Hashable {
         case .views: "Views"
         }
     }
+
+    /// Tab switches to tasks, or back to everything when tasks are already locked.
+    var afterTab: PaletteScope {
+        self == .tasks ? .mixed : .tasks
+    }
 }
 
 struct PaletteQuery: Equatable {

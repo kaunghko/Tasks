@@ -39,6 +39,9 @@ struct TaskChip: View {
                 actions.delete([task.id])
             }
         }
+        .popover(isPresented: actions.detailsShown(task.id), arrowEdge: .trailing) {
+            TaskDetailView(task: $task)
+        }
         .help(task.title)
     }
 

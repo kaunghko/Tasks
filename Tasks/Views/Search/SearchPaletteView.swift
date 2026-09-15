@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 /// The ⌘K palette. Typing searches tasks and views; Tab narrows to tasks, a leading @ to views.
@@ -9,6 +10,7 @@ struct SearchPaletteView: View {
     @State private var text = ""
     @State private var lockedScope: PaletteScope = .mixed
     @State private var highlighted = 0
+    @State private var keyMonitor = PaletteKeyMonitor()
     @FocusState private var isFieldFocused: Bool
 
     private static let rowHeight: CGFloat = 28
@@ -46,8 +48,12 @@ struct SearchPaletteView: View {
             .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
             .padding(.top, 48)
         }
-        .onExitCommand(perform: onDismiss)
-        .onAppear { isFieldFocused = true }
+        .background(PaletteKeyMonitor.Anchor(monitor: keyMonitor))
+        .onAppear {
+            isFieldFocused = true
+            keyMonitor.start(handler: handleKey)
+        }
+        .onDisappear { keyMonitor.stop() }
         .onChange(of: text) { _, newValue in
             // A leading @ becomes a scope token, the same way Tab does for tasks.
             if lockedScope == .mixed, newValue.hasPrefix("@") {
@@ -66,12 +72,24 @@ struct SearchPaletteView: View {
             Image(systemName: "magnifyingglass")
                 .foregroundStyle(.secondary)
             if let title = lockedScope.title {
-                Text(title)
+                Button {
+                    lockedScope = .mixed
+                    isFieldFocused = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(title)
+                        Image(systemName: "xmark")
+                            .font(.caption2.weight(.bold))
+                    }
                     .font(.callout.weight(.medium))
                     .foregroundStyle(Color.accentColor)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.15), in: .rect(cornerRadius: 4))
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .help("Search tasks and views")
             }
             TextField(prompt, text: $text)
                 .textFieldStyle(.plain)
@@ -83,19 +101,6 @@ struct SearchPaletteView: View {
                 }
                 .onKeyPress(.upArrow) { move(by: -1, count: results.count) }
                 .onKeyPress(.downArrow) { move(by: 1, count: results.count) }
-                .onKeyPress(.tab) {
-                    lockedScope = .tasks
-                    return .handled
-                }
-                .onKeyPress(.delete) {
-                    guard text.isEmpty, lockedScope != .mixed else { return .ignored }
-                    lockedScope = .mixed
-                    return .handled
-                }
-                .onKeyPress(.escape) {
-                    onDismiss()
-                    return .handled
-                }
         }
         .padding(12)
     }
@@ -148,6 +153,7 @@ struct SearchPaletteView: View {
         HStack(spacing: 14) {
             hint("⇥", "Tasks")
             hint("@", "Views")
+            hint("⌫", "All")
             hint("↑↓", "Move")
             hint("↩", "Open")
             Spacer()
@@ -161,6 +167,30 @@ struct SearchPaletteView: View {
 
     private func hint(_ key: String, _ label: String) -> some View {
         Text("\(Text(key).fontWeight(.semibold)) \(label)")
+    }
+
+    // MARK: - Keys
+
+    /// Tab, Backspace and Esc are read before the text field sees them: the field editor
+    /// consumes Backspace on an empty field, so `.onKeyPress` never gets it.
+    private func handleKey(_ keyCode: UInt16) -> Bool {
+        switch keyCode {
+        case 48: // Tab
+            lockedScope = lockedScope.afterTab
+            return true
+        case 51 where text.isEmpty && lockedScope != .mixed: // Backspace
+            lockedScope = .mixed
+            return true
+        case 53: // Esc: remove the scope first, then close
+            if lockedScope != .mixed {
+                lockedScope = .mixed
+            } else {
+                onDismiss()
+            }
+            return true
+        default:
+            return false
+        }
     }
 
     // MARK: - Helpers
@@ -201,5 +231,49 @@ struct SearchPaletteView: View {
 private extension PaletteResult {
     var isDone: Bool {
         if case .task(let task) = self { task.done } else { false }
+    }
+}
+
+/// Watches key presses in the palette's own window only, so other open documents are unaffected.
+@MainActor
+final class PaletteKeyMonitor {
+    fileprivate weak var view: NSView?
+    private var token: Any?
+
+    /// `handler` gets the key code and returns true when it used the key.
+    func start(handler: @escaping @MainActor (UInt16) -> Bool) {
+        stop()
+        token = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            // Only plain values cross into the main-actor block; NSEvent isn't Sendable.
+            let keyCode = event.keyCode
+            let windowNumber = event.windowNumber
+            let used = MainActor.assumeIsolated {
+                guard let window = self?.view?.window, window.windowNumber == windowNumber else {
+                    return false
+                }
+                return handler(keyCode)
+            }
+            return used ? nil : event
+        }
+    }
+
+    func stop() {
+        if let token {
+            NSEvent.removeMonitor(token)
+        }
+        token = nil
+    }
+
+    /// An invisible view that tells the monitor which window the palette is in.
+    struct Anchor: NSViewRepresentable {
+        let monitor: PaletteKeyMonitor
+
+        func makeNSView(context: Context) -> NSView {
+            let view = NSView()
+            monitor.view = view
+            return view
+        }
+
+        func updateNSView(_ nsView: NSView, context: Context) {}
     }
 }
