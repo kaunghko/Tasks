@@ -129,14 +129,16 @@ enum SearchPalette {
             .map(\.view)
     }
 
-    /// Title matches rank by position; a match only in the notes comes last.
+    /// Title matches rank by position; a match only in the notes or subtasks comes last.
     static func matchingTasks(_ term: String, in tasks: [TaskItem]) -> [TaskItem] {
         tasks
             .compactMap { task -> (rank: Int, task: TaskItem)? in
                 if let rank = matchRank(of: term, in: task.title) {
                     return (rank, task)
                 }
-                return task.notes.localizedStandardContains(term) ? (3, task) : nil
+                let inBody = task.notes.localizedStandardContains(term)
+                    || task.subtasks.contains { $0.title.localizedStandardContains(term) }
+                return inBody ? (3, task) : nil
             }
             .sorted { $0.rank != $1.rank ? $0.rank < $1.rank : TaskFilter.displayOrder($0.task, $1.task) }
             .map(\.task)

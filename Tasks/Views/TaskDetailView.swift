@@ -18,12 +18,7 @@ struct TaskDetailView: View {
                 }
             }
 
-            Section("Notes") {
-                TextEditor(text: $task.notes)
-                    .font(.body)
-                    .frame(minHeight: 120)
-                    .scrollContentBackground(.hidden)
-            }
+            NotesEditor(task: $task)
 
             Section {
                 LabeledContent(

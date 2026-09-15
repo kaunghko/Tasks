@@ -20,6 +20,10 @@ Built with Swift and SwiftUI only. It has zero third-party dependencies.
   - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
   - To search everything again, press Backspace in an empty field, press Tab again, or click ✕ on the scope token. Esc also removes a scope before it closes the palette.
 - Click a task to edit its title, notes and due date in a popover
+- Subtasks: in a task's notes, start a line with `- [ ] ` (or `- [x] `) to turn it into a checkbox. Other lines stay plain notes.
+  - Return adds the next subtask. Return or Backspace on an empty subtask deletes it and ends the list.
+  - To delete any subtask, click the ✕ that shows when you hover over it or edit it, or right-click it.
+  - Task rows show progress, such as `1/2`, and search also matches subtask titles.
 - Autosave, undo/redo and File ▸ Revert To, all provided by the macOS document system
 
 | Shortcut | Action |
@@ -44,7 +48,11 @@ Built with Swift and SwiftUI only. It has zero third-party dependencies.
     {
       "id": "0B7E6C2A-7D0F-4C8E-9B61-2F6A1E3C4D01",
       "title": "Finish ML assignment",
-      "notes": "",
+      "notes": "Chapter 3 exercises",
+      "subtasks": [
+        { "id": "7A1D3F20-5B6C-4E8A-9D12-3C4B5A6F7E01", "title": "Q1 regression", "done": true },
+        { "title": "Q2 logistic" }
+      ],
       "done": false,
       "due": "2026-09-22",
       "createdAt": "2026-09-15T09:00:00Z"
@@ -58,6 +66,7 @@ Built with Swift and SwiftUI only. It has zero third-party dependencies.
 | `id` | UUID string | generated |
 | `title` | string | `""` |
 | `notes` | string | `""` |
+| `subtasks` | array of `{id, title, done}`, where only `title` is needed | `[]`, and left out when empty |
 | `done` | bool | `false` |
 | `due` | `yyyy-MM-dd`, a local day | none |
 | `createdAt` | ISO-8601 timestamp | time of loading |
@@ -78,10 +87,12 @@ See [`Samples/tasks.json`](Samples/tasks.json) for an example.
 Tasks/
   TasksApp.swift              DocumentGroup scene
   Document/TaskDocument.swift FileDocument: reads and writes JSON
-  Model/                      TaskFile, TaskItem (tolerant Codable), TaskFilter (filter + sort),
+  Model/                      TaskFile, TaskItem (tolerant Codable), Subtask + Checklist (`- [ ]` parsing),
+                              TaskFilter (filter + sort),
                               CalendarGrid (month/week date math),
                               SearchPalette (query parsing + result ranking)
-  Views/                      ContentView (split view), TaskRow, TaskDetailView (popover)
+  Views/                      ContentView (split view), TaskRow, TaskDetailView (popover),
+                              NotesEditor (subtask checklist + notes), WindowKeyMonitor
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray
   Views/Search/               SearchPaletteView (⌘K palette)
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,

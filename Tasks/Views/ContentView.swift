@@ -41,7 +41,8 @@ struct ContentView: View {
             detail
                 .onDeleteCommand { delete(selection) }
                 .onKeyPress(.space) {
-                    guard !selection.isEmpty else { return .ignored }
+                    // Space types a space while editing text, e.g. notes in the details popover.
+                    guard !selection.isEmpty, !(NSApp.keyWindow?.firstResponder is NSText) else { return .ignored }
                     toggleDone(selection)
                     return .handled
                 }

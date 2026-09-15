@@ -23,6 +23,19 @@ struct TaskRow: View {
 
             Spacer()
 
+            if let progress = task.subtaskProgress {
+                // Not a `Label`: the List aligns row separators to a Label's title,
+                // which cut the separator short under rows with subtasks.
+                HStack(spacing: 3) {
+                    Image(systemName: "checklist")
+                    Text("\(progress.done)/\(progress.total)")
+                }
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .help("\(progress.done) of \(progress.total) subtasks done")
+            }
+
             if let dueLabel = task.dueLabel {
                 Text(dueLabel)
                     .font(.caption)

@@ -10,7 +10,7 @@ struct SearchPaletteView: View {
     @State private var text = ""
     @State private var lockedScope: PaletteScope = .mixed
     @State private var highlighted = 0
-    @State private var keyMonitor = PaletteKeyMonitor()
+    @State private var keyMonitor = WindowKeyMonitor()
     @FocusState private var isFieldFocused: Bool
 
     private static let rowHeight: CGFloat = 28
@@ -48,7 +48,7 @@ struct SearchPaletteView: View {
             .shadow(color: .black.opacity(0.2), radius: 16, y: 6)
             .padding(.top, 48)
         }
-        .background(PaletteKeyMonitor.Anchor(monitor: keyMonitor))
+        .background(WindowKeyMonitor.Anchor(monitor: keyMonitor))
         .onAppear {
             isFieldFocused = true
             keyMonitor.start(handler: handleKey)
@@ -231,49 +231,5 @@ struct SearchPaletteView: View {
 private extension PaletteResult {
     var isDone: Bool {
         if case .task(let task) = self { task.done } else { false }
-    }
-}
-
-/// Watches key presses in the palette's own window only, so other open documents are unaffected.
-@MainActor
-final class PaletteKeyMonitor {
-    fileprivate weak var view: NSView?
-    private var token: Any?
-
-    /// `handler` gets the key code and returns true when it used the key.
-    func start(handler: @escaping @MainActor (UInt16) -> Bool) {
-        stop()
-        token = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // Only plain values cross into the main-actor block; NSEvent isn't Sendable.
-            let keyCode = event.keyCode
-            let windowNumber = event.windowNumber
-            let used = MainActor.assumeIsolated {
-                guard let window = self?.view?.window, window.windowNumber == windowNumber else {
-                    return false
-                }
-                return handler(keyCode)
-            }
-            return used ? nil : event
-        }
-    }
-
-    func stop() {
-        if let token {
-            NSEvent.removeMonitor(token)
-        }
-        token = nil
-    }
-
-    /// An invisible view that tells the monitor which window the palette is in.
-    struct Anchor: NSViewRepresentable {
-        let monitor: PaletteKeyMonitor
-
-        func makeNSView(context: Context) -> NSView {
-            let view = NSView()
-            monitor.view = view
-            return view
-        }
-
-        func updateNSView(_ nsView: NSView, context: Context) {}
     }
 }

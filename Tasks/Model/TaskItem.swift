@@ -4,6 +4,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
     var id: UUID
     var title: String
     var notes: String
+    var subtasks: [Subtask]
     var done: Bool
     /// Start of the local day the task is due. Stored in JSON as `yyyy-MM-dd`.
     var due: Date?
@@ -13,6 +14,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         id: UUID = UUID(),
         title: String = "",
         notes: String = "",
+        subtasks: [Subtask] = [],
         done: Bool = false,
         due: Date? = nil,
         createdAt: Date = .now
@@ -20,6 +22,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         self.id = id
         self.title = title
         self.notes = notes
+        self.subtasks = subtasks
         self.done = done
         self.due = due.map { Calendar.current.startOfDay(for: $0) }
         // JSON timestamps have whole-second precision; match it so values round-trip.
@@ -27,17 +30,20 @@ struct TaskItem: Codable, Identifiable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, notes, done, due, createdAt
+        case id, title, notes, subtasks, done, due, createdAt
     }
 
     /// Tolerant decoding: only `title` is really expected, everything else has a default,
     /// so hand-written entries like `{"title": "Buy milk"}` load fine.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        // `- [ ]` lines written by hand into notes become subtasks, after any listed ones.
+        let checklist = Checklist.extract(from: try container.decodeIfPresent(String.self, forKey: .notes) ?? "")
         self.init(
             id: (try? container.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID(),
             title: try container.decodeIfPresent(String.self, forKey: .title) ?? "",
-            notes: try container.decodeIfPresent(String.self, forKey: .notes) ?? "",
+            notes: checklist.notes,
+            subtasks: (try container.decodeIfPresent([Subtask].self, forKey: .subtasks) ?? []) + checklist.subtasks,
             done: try container.decodeIfPresent(Bool.self, forKey: .done) ?? false,
             due: (try? container.decodeIfPresent(String.self, forKey: .due)).flatMap(TaskDates.parse),
             createdAt: (try? container.decodeIfPresent(String.self, forKey: .createdAt))
@@ -50,6 +56,10 @@ struct TaskItem: Codable, Identifiable, Hashable {
         try container.encode(id, forKey: .id)
         try container.encode(title, forKey: .title)
         try container.encode(notes, forKey: .notes)
+        // Left out when empty, so files without subtasks save unchanged.
+        if !subtasks.isEmpty {
+            try container.encode(subtasks, forKey: .subtasks)
+        }
         try container.encode(done, forKey: .done)
         try container.encodeIfPresent(due.map(TaskDates.dayString), forKey: .due)
         try container.encode(TaskDates.timestampString(createdAt), forKey: .createdAt)
@@ -67,6 +77,12 @@ struct TaskItem: Codable, Identifiable, Hashable {
         if calendar.isDateInToday(due) { return "Today" }
         if calendar.isDateInTomorrow(due) { return "Tomorrow" }
         return due.formatted(.dateTime.month(.abbreviated).day())
+    }
+
+    /// Finished and total subtask counts, or nil when there are none.
+    var subtaskProgress: (done: Int, total: Int)? {
+        guard !subtasks.isEmpty else { return nil }
+        return (subtasks.count { $0.done }, subtasks.count)
     }
 }
 
