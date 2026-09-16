@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds, signs, notarizes and publishes a release of Tasks, then updates the Sparkle appcast
+# Builds, signs, notarizes and publishes a release of K2Tasks, then updates the Sparkle appcast
 # so installed copies offer the update.
 #
 #   scripts/release.sh 0.2.0
@@ -55,7 +55,7 @@ xcodebuild archive -scheme Tasks -configuration Release \
 xcodebuild -exportArchive -archivePath "$BUILD/Tasks.xcarchive" \
   -exportPath "$BUILD/export" -exportOptionsPlist "$ROOT/scripts/ExportOptions.plist" \
   -allowProvisioningUpdates -quiet
-APP="$BUILD/export/Tasks.app"
+APP="$BUILD/export/K2Tasks.app"
 
 echo "==> Notarizing"
 ditto -c -k --keepParent "$APP" "$BUILD/notarize.zip"
@@ -64,7 +64,7 @@ xcrun stapler staple "$APP"
 spctl --assess --type execute --verbose "$APP"
 
 echo "==> Updating appcast"
-ZIP="Tasks-$VERSION.zip"
+ZIP="K2Tasks-$VERSION.zip"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$BUILD/updates/$ZIP"
 if [[ -f appcast.xml ]]; then cp appcast.xml "$BUILD/updates/"; fi
 "$SPARKLE_BIN/generate_appcast" \
@@ -80,7 +80,7 @@ trap - ERR
 # Push the tag and upload the zip before moving main, so the appcast on main never
 # points at a download that doesn't exist yet.
 git push origin "v$VERSION"
-gh release create "v$VERSION" "$BUILD/updates/$ZIP" --repo "$REPO" --title "Tasks $VERSION" --generate-notes
+gh release create "v$VERSION" "$BUILD/updates/$ZIP" --repo "$REPO" --title "K2Tasks $VERSION" --generate-notes
 git push origin main
 
-echo "Released Tasks $VERSION: https://github.com/$REPO/releases/tag/v$VERSION"
+echo "Released K2Tasks $VERSION: https://github.com/$REPO/releases/tag/v$VERSION"

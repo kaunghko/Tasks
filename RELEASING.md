@@ -1,4 +1,4 @@
-# Releasing Tasks
+# Releasing K2Tasks
 
 Updates use [Sparkle](https://sparkle-project.org), the app's only dependency. A release is a notarized zip attached to a GitHub Release. [`appcast.xml`](appcast.xml) on `main` is the feed installed copies check. Each entry in it is signed with an EdDSA key, and the app only installs an update if the signature matches the public key in `Tasks-Info.plist`.
 

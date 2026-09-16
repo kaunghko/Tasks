@@ -1,4 +1,4 @@
-# Tasks
+# K2Tasks
 
 A native macOS task manager that renders a plain `.json` file.
 
@@ -8,7 +8,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 
 ## Features
 
-- Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ Tasks
+- Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ K2Tasks
 - Sidebar filters (hidden by default; show it with the toolbar button): All, Today (including overdue), Upcoming, Completed
 - Events with start and end times, next to tasks:
   - Add one with ⌥⌘N, drag from the start to the end time on the Week view's hour grid, double-click the grid for a one-hour event, or switch a task to Event in its popover. Switching back and forth keeps the event's times and the task's done state.
@@ -134,6 +134,6 @@ xcodebuild test -scheme Tasks -destination 'platform=macOS'
 
 ## Install
 
-Download `Tasks-x.y.z.zip` from [Releases](https://github.com/kaunghko/Tasks/releases), unzip it, and drag `Tasks.app` into `/Applications`. Builds are signed with Developer ID and notarized by Apple, so they open without warnings. After that, the app checks for updates once a day and can install them itself. You can also use Tasks ▸ Check for Updates….
+Download `K2Tasks-x.y.z.zip` from [Releases](https://github.com/kaunghko/Tasks/releases), unzip it, and drag `K2Tasks.app` into `/Applications`. Builds are signed with Developer ID and notarized by Apple, so they open without warnings. After that, the app checks for updates once a day and can install them itself. You can also use K2Tasks ▸ Check for Updates….
 
 Maintainers: see [RELEASING.md](RELEASING.md).
