@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Tasks is a native macOS (26+) SwiftUI app that renders and edits a plain `.json` task file. The file is the source of truth: no database, no account. README.md documents user-facing features, shortcuts and the JSON format, so keep it in sync when behavior changes.
+K2Tasks (the Xcode project, scheme, Swift module and bundle ID are still named `Tasks`) is a native macOS (26+) SwiftUI app that renders and edits a plain `.json` task file. The file is the source of truth: no database, no account. README.md documents user-facing features, shortcuts and the JSON format, so keep it in sync when behavior changes.
 
 ## Commands
 
@@ -40,4 +40,4 @@ Unit tests don't cover view behavior, and `ImageRenderer` can't draw scroll view
 ## git practices
 - After making any changes, ask me whether to commit or not. 
 - If I say commit, start the comment with "Add: ..." for feature addition, "Fix: .." for any bug fixes, etc. 
-- Never include "Co-authored by Claude", "Written by Claude", etc. at the end of the comment. 
+- Never include "Co-authored by Claude", "Written by Claude", etc. at the end of the comment. And make them at most 2 lines max. Keep it concise and simple.

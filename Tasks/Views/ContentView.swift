@@ -25,6 +25,11 @@ struct ContentView: View {
         }
     }
 
+    /// The window title: the current view rather than the document's file name.
+    private var viewTitle: String {
+        destination == .calendar ? "Calendar" : currentFilter.title
+    }
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $destination) {
@@ -50,7 +55,8 @@ struct ContentView: View {
                     toggleDone(selection)
                     return .handled
                 }
-                .navigationTitle(destination == .calendar ? "Calendar" : currentFilter.title)
+                .navigationTitle(viewTitle)
+                .background(WindowTitle(title: viewTitle))
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button("New Task", systemImage: "plus", action: addTask)
