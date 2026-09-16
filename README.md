@@ -41,6 +41,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | ↑ ↓ ↩ Esc | Move, open, close (in the palette) |
 | Space | Toggle done on the selected tasks (events are skipped) |
 | ⌫ | Delete the selected tasks |
+| ⌘1–⌘9 | Select the 1st–9th task (list views) |
 | ⌘← / ⌘→ | Previous / next month or week (Calendar) |
 | ⌘T | Go to today (Calendar) |
 | ⌘1 / ⌘2 | Month / Week view (Calendar) |

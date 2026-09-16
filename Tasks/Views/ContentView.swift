@@ -169,6 +169,15 @@ struct ContentView: View {
                 else { return }
                 detailTaskID = id
             }
+            .background {
+                // ⌘1–⌘9 select the task at that position. The Calendar uses ⌘1/⌘2 for Month/Week instead.
+                ForEach(1...9, id: \.self) { number in
+                    Button("Select Task \(number)") { selectTask(at: number - 1, in: tasks, proxy: proxy) }
+                        .keyboardShortcut(KeyEquivalent(Character("\(number)")), modifiers: .command)
+                }
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
         }
         .overlay {
             if tasks.isEmpty {
@@ -179,6 +188,13 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    /// ⌘1–⌘9: selects the task at that position in the list and scrolls to it.
+    private func selectTask(at index: Int, in tasks: [TaskItem], proxy: ScrollViewProxy) {
+        guard tasks.indices.contains(index) else { return }
+        selection = [tasks[index].id]
+        proxy.scrollTo(tasks[index].id)
     }
 
     private func detailsShown(_ id: TaskItem.ID) -> Binding<Bool> {
