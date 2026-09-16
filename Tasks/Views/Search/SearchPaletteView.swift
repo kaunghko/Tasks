@@ -206,6 +206,7 @@ struct SearchPaletteView: View {
     private func icon(for result: PaletteResult) -> String {
         switch result {
         case .view(let view): view.systemImage
+        case .task(let task) where task.isEvent: "calendar"
         case .task(let task): task.done ? "checkmark.circle.fill" : "circle"
         }
     }
@@ -214,8 +215,8 @@ struct SearchPaletteView: View {
         switch result {
         case .view(let view): view.subtitle
         case .task(let task):
-            // The list the task lives in, then its date: "Upcoming · Sep 20".
-            [TaskFilter.home(for: task).title, task.due?.formatted(.dateTime.month(.abbreviated).day())]
+            // The list the task lives in, then its date: "Upcoming · Sep 20", or "Today · 09:00" for an event.
+            [TaskFilter.home(for: task).title, task.due?.formatted(.dateTime.month(.abbreviated).day()), task.startTimeLabel]
                 .compactMap { $0 }
                 .joined(separator: " · ")
         }

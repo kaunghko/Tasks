@@ -8,6 +8,8 @@ struct ContentView: View {
     @State private var selection: Set<TaskItem.ID> = []
     /// The task whose details popover is open.
     @State private var detailTaskID: TaskItem.ID?
+    /// Set briefly while an item switches between task and event from its popover.
+    @State private var kindSwitchID: TaskItem.ID?
     @State private var isPaletteShown = false
     @State private var calendarDate = Date.now
     @SceneStorage("calendarMode") private var calendarMode: CalendarMode = .month
@@ -51,6 +53,12 @@ struct ContentView: View {
                     ToolbarItem(placement: .primaryAction) {
                         Button("New Task", systemImage: "plus", action: addTask)
                             .keyboardShortcut("n", modifiers: [.command, .shift])
+                            .help("New task (⇧⌘N)")
+                    }
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("New Event", systemImage: "calendar.badge.plus", action: addEvent)
+                            .keyboardShortcut("n", modifiers: [.command, .option])
+                            .help("New event (⌥⌘N)")
                     }
                     ToolbarItem {
                         Button("Search", systemImage: "magnifyingglass") {
@@ -61,6 +69,7 @@ struct ContentView: View {
                     }
                 }
         }
+        .environment(\.willSwitchKind, willSwitchKind)
         .overlay {
             if isPaletteShown {
                 SearchPaletteView(
@@ -82,9 +91,12 @@ struct ContentView: View {
                 mode: $calendarMode,
                 detailTaskID: $detailTaskID,
                 onAdd: insertTask(due:),
+                onAddEvent: insertEvent(start:end:),
                 onReschedule: reschedule,
+                onMove: move,
                 onToggleDone: toggleDone,
-                onDelete: delete
+                onDelete: delete,
+                detailsShown: detailsShown
             )
         } else {
             taskList
@@ -94,7 +106,14 @@ struct ContentView: View {
     // MARK: - Task list
 
     private var taskList: some View {
-        let tasks = currentFilter.apply(to: document.file.tasks)
+        var tasks = currentFilter.apply(to: document.file.tasks)
+        // Keep the task whose popover is open, so an edit that moves it out of this list
+        // (marking it done in Today, switching it to an event) doesn't close the popover under the cursor.
+        if let id = detailTaskID, !tasks.contains(where: { $0.id == id }),
+           let open = document.file.tasks.first(where: { $0.id == id }) {
+            tasks.append(open)
+            tasks.sort(by: TaskFilter.displayOrder)
+        }
         return ScrollViewReader { proxy in
             List(selection: $selection) {
                 ForEach(tasks) { task in
@@ -110,10 +129,12 @@ struct ContentView: View {
                             TaskDetailView(task: $document.file.tasks[id: task.id])
                         }
                         .contextMenu {
-                            Button(task.done ? "Mark as Not Done" : "Mark as Done") {
-                                toggleDone([task.id])
+                            if !task.isEvent {
+                                Button(task.done ? "Mark as Not Done" : "Mark as Done") {
+                                    toggleDone([task.id])
+                                }
+                                Divider()
                             }
-                            Divider()
                             Button("Delete", role: .destructive) {
                                 delete([task.id])
                             }
@@ -156,11 +177,25 @@ struct ContentView: View {
         Binding(
             get: { detailTaskID == id },
             set: { isShown in
-                if !isShown, detailTaskID == id {
-                    detailTaskID = nil
+                guard !isShown, detailTaskID == id else { return }
+                detailTaskID = nil
+                if kindSwitchID == id {
+                    // Switching kinds replaced the view the popover pointed at, such as a task chip
+                    // becoming an event block in the Week view. Open it again on the new one.
+                    openDetails(id)
                 }
             }
         )
+    }
+
+    private func willSwitchKind(_ id: TaskItem.ID) {
+        kindSwitchID = id
+        Task {
+            try? await Task.sleep(for: .milliseconds(500))
+            if kindSwitchID == id {
+                kindSwitchID = nil
+            }
+        }
     }
 
     /// Opens a task's popover once its row or chip is on screen.
@@ -224,7 +259,31 @@ struct ContentView: View {
     }
 
     private func insertTask(due: Date?) {
-        let task = TaskItem(title: "New Task", due: due)
+        insert(TaskItem(title: "New Task", due: due))
+    }
+
+    /// New Event from the toolbar: the next whole hour, on the calendar's day or today.
+    private func addEvent() {
+        switch destination {
+        case .calendar:
+            insertEvent(start: TaskItem.defaultEventStart(on: calendarDate))
+        case .filter(.upcoming):
+            let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now) ?? .now
+            insertEvent(start: TaskItem.defaultEventStart(on: tomorrow))
+        case .filter(.today), .filter(.all):
+            insertEvent(start: TaskItem.defaultEventStart(on: .now))
+        default:
+            destination = .filter(.all)
+            insertEvent(start: TaskItem.defaultEventStart(on: .now))
+        }
+    }
+
+    /// Without an end, the event lasts an hour.
+    private func insertEvent(start: Date, end: Date? = nil) {
+        insert(TaskItem(title: "New Event", start: start, end: end))
+    }
+
+    private func insert(_ task: TaskItem) {
         document.file.tasks.append(task)
         selection = [task.id]
         openDetails(task.id)
@@ -239,21 +298,45 @@ struct ContentView: View {
         selection.subtract(ids)
     }
 
-    /// Marks all as done if any are open; otherwise reopens them.
+    /// Marks all as done if any are open; otherwise reopens them. Events have no done state.
     private func toggleDone(_ ids: Set<TaskItem.ID>) {
         var tasks = document.file.tasks
-        let markDone = tasks.contains { ids.contains($0.id) && !$0.done }
-        for index in tasks.indices where ids.contains(tasks[index].id) {
+        let toggled = tasks.indices.filter { ids.contains(tasks[$0].id) && !tasks[$0].isEvent }
+        guard !toggled.isEmpty else { return }
+        let markDone = toggled.contains { !tasks[$0].done }
+        for index in toggled {
             tasks[index].done = markDone
         }
         document.file.tasks = tasks
     }
 
     /// Moves tasks to a day, or clears their due date when `day` is nil.
+    /// Events keep their times, and can't lose their date.
     private func reschedule(_ ids: Set<TaskItem.ID>, to day: Date?) {
         var tasks = document.file.tasks
         for index in tasks.indices where ids.contains(tasks[index].id) {
-            tasks[index].due = day.map { Calendar.current.startOfDay(for: $0) }
+            if let day {
+                tasks[index].move(toDay: day)
+            } else if !tasks[index].isEvent {
+                tasks[index].due = nil
+            }
+        }
+        guard tasks != document.file.tasks else { return }
+        document.file.tasks = tasks
+    }
+
+    /// A drop on the week grid: the anchor event starts at `start`, other selected events shift
+    /// by the same amount, and tasks move to that day.
+    private func move(_ ids: Set<TaskItem.ID>, anchor: TaskItem.ID, to start: Date) {
+        var tasks = document.file.tasks
+        let offset = tasks[id: anchor].start.map { start.timeIntervalSince($0) }
+        for index in tasks.indices where ids.contains(tasks[index].id) {
+            if let eventStart = tasks[index].start, let offset {
+                tasks[index].move(toStart: eventStart.addingTimeInterval(offset))
+            } else {
+                // Dragged along with a task: events keep their time of day, tasks just change day.
+                tasks[index].move(toDay: start)
+            }
         }
         guard tasks != document.file.tasks else { return }
         document.file.tasks = tasks

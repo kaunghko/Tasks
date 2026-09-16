@@ -23,9 +23,22 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
         }
     }
 
-    /// `today` includes overdue tasks, so nothing slips out of view.
+    /// `today` includes overdue tasks, so nothing slips out of view, and events that haven't ended yet.
     func includes(_ task: TaskItem, now: Date = .now, calendar: Calendar = .current) -> Bool {
         let today = calendar.startOfDay(for: now)
+        if let start = task.start, let end = task.end {
+            switch self {
+            case .all:
+                return true
+            case .today:
+                let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+                return start < tomorrow && end > now
+            case .upcoming:
+                return calendar.startOfDay(for: start) > today
+            case .completed:
+                return false
+            }
+        }
         switch self {
         case .all:
             return true
@@ -41,7 +54,7 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
     }
 
     /// The most specific list a task shows up in: Completed, Today (with overdue), Upcoming,
-    /// or All for open tasks without a due date.
+    /// or All for open tasks without a due date and events that are over.
     static func home(for task: TaskItem, now: Date = .now, calendar: Calendar = .current) -> TaskFilter {
         [.completed, .today, .upcoming].first { $0.includes(task, now: now, calendar: calendar) } ?? .all
     }
@@ -59,15 +72,35 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
             .filter { query.isEmpty
                 || $0.title.localizedStandardContains(query)
                 || $0.notes.localizedStandardContains(query) }
-            .sorted(by: TaskFilter.displayOrder)
+            .sorted { TaskFilter.displayOrder($0, $1, now: now) }
     }
 
     /// Open tasks first, then by due date (undated last), then oldest first.
+    /// Events count as done once they end, and come before tasks on the same day, by start time.
     static func displayOrder(_ a: TaskItem, _ b: TaskItem) -> Bool {
-        if a.done != b.done {
-            return !a.done
+        displayOrder(a, b, now: .now)
+    }
+
+    static func displayOrder(_ a: TaskItem, _ b: TaskItem, now: Date) -> Bool {
+        let aFinished = a.isFinished(now: now), bFinished = b.isFinished(now: now)
+        if aFinished != bFinished {
+            return !aFinished
         }
         switch (a.due, b.due) {
+        case let (lhs?, rhs?) where lhs != rhs:
+            return lhs < rhs
+        case (.some, nil):
+            return true
+        case (nil, .some):
+            return false
+        default:
+            return sameDayOrder(a, b)
+        }
+    }
+
+    /// Events by start time, then tasks oldest first.
+    static func sameDayOrder(_ a: TaskItem, _ b: TaskItem) -> Bool {
+        switch (a.start, b.start) {
         case let (lhs?, rhs?) where lhs != rhs:
             return lhs < rhs
         case (.some, nil):

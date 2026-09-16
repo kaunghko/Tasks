@@ -129,6 +129,6 @@ private struct DayCell: View {
             // The "more" popover shows this task too; only that copy presents its details.
             chipActions.detailsShown = { _ in .constant(false) }
         }
-        return TaskChip(task: $tasks[id: task.id], isSelected: selection.contains(task.id), actions: chipActions)
+        return TaskChip(task: $tasks[id: task.id], isSelected: selection.contains(task.id), actions: chipActions, day: day)
     }
 }

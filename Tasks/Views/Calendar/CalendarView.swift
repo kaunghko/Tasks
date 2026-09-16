@@ -5,8 +5,12 @@ struct CalendarActions {
     var select: (TaskItem.ID, _ extend: Bool) -> Void
     var clearSelection: () -> Void
     var add: (Date?) -> Void
+    /// Adds an event from a start to an end time.
+    var addEvent: (Date, Date) -> Void
     /// Handles dropped task ids; `nil` clears the due date.
     var drop: ([String], Date?) -> Bool
+    /// Handles task ids dropped at a time on the week grid.
+    var dropAt: ([String], Date) -> Bool
     var toggleDone: (Set<TaskItem.ID>) -> Void
     var delete: (Set<TaskItem.ID>) -> Void
     /// Whether a task's details popover is open; setting false closes it.
@@ -20,9 +24,15 @@ struct CalendarView: View {
     @Binding var mode: CalendarMode
     @Binding var detailTaskID: TaskItem.ID?
     let onAdd: (Date?) -> Void
+    let onAddEvent: (Date, Date) -> Void
     let onReschedule: (Set<TaskItem.ID>, Date?) -> Void
+    /// Moves tasks to a time: the anchor event starts then, other events shift by as much,
+    /// and tasks move to that day.
+    let onMove: (Set<TaskItem.ID>, _ anchor: TaskItem.ID, Date) -> Void
     let onToggleDone: (Set<TaskItem.ID>) -> Void
     let onDelete: (Set<TaskItem.ID>) -> Void
+    /// Whether a task's details popover is open; setting false closes it.
+    let detailsShown: (TaskItem.ID) -> Binding<Bool>
 
     @SceneStorage("calendarTrayShown") private var isTrayShown = false
     @FocusState private var isFocused: Bool
@@ -114,6 +124,11 @@ struct CalendarView: View {
         visibleDate = CalendarGrid.step(visibleDate, mode: mode, by: value)
     }
 
+    /// Dragging one chip of a multi-selection moves the whole selection.
+    private func withSelection(_ dragged: Set<TaskItem.ID>) -> Set<TaskItem.ID> {
+        dragged.isDisjoint(with: selection) ? dragged : dragged.union(selection)
+    }
+
     private var actions: CalendarActions {
         CalendarActions(
             select: { id, extend in
@@ -130,26 +145,22 @@ struct CalendarView: View {
                 isFocused = true
             },
             add: onAdd,
+            addEvent: onAddEvent,
             drop: { items, day in
                 let dragged = Set(items.compactMap(UUID.init(uuidString:)))
                 guard !dragged.isEmpty else { return false }
-                // Dragging one chip of a multi-selection moves the whole selection.
-                let ids = dragged.isDisjoint(with: selection) ? dragged : dragged.union(selection)
-                onReschedule(ids, day)
+                onReschedule(withSelection(dragged), day)
+                return true
+            },
+            dropAt: { items, date in
+                let dragged = items.compactMap(UUID.init(uuidString:))
+                guard let anchor = dragged.first else { return false }
+                onMove(withSelection(Set(dragged)), anchor, date)
                 return true
             },
             toggleDone: onToggleDone,
             delete: onDelete,
-            detailsShown: { id in
-                Binding(
-                    get: { detailTaskID == id },
-                    set: { isShown in
-                        if !isShown, detailTaskID == id {
-                            detailTaskID = nil
-                        }
-                    }
-                )
-            }
+            detailsShown: detailsShown
         )
     }
 }
