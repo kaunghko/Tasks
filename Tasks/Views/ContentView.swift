@@ -11,6 +11,8 @@ struct ContentView: View {
     /// Set briefly while an item switches between task and event from its popover.
     @State private var kindSwitchID: TaskItem.ID?
     @State private var isPaletteShown = false
+    /// The sidebar starts hidden so the task list opens uncluttered.
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     @State private var calendarDate = Date.now
     @SceneStorage("calendarMode") private var calendarMode: CalendarMode = .month
     /// A task the list should scroll to and then open details for.
@@ -24,7 +26,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             List(selection: $destination) {
                 Section {
                     ForEach(TaskFilter.allCases) { item in

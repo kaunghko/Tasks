@@ -9,7 +9,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 ## Features
 
 - Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ Tasks
-- Sidebar filters: All, Today (including overdue), Upcoming, Completed
+- Sidebar filters (hidden by default; show it with the toolbar button): All, Today (including overdue), Upcoming, Completed
 - Events with start and end times, next to tasks:
   - Add one with ⌥⌘N, drag from the start to the end time on the Week view's hour grid, double-click the grid for a one-hour event, or switch a task to Event in its popover. Switching back and forth keeps the event's times and the task's done state.
   - Events show a colored bar instead of a checkbox, and their time range, such as `09:00–10:15`.
