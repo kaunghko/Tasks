@@ -7,14 +7,21 @@ struct CalendarActions {
     var add: (Date?) -> Void
     /// Adds an event from a start to an end time.
     var addEvent: (Date, Date) -> Void
-    /// Handles dropped task ids; `nil` clears the due date.
-    var drop: ([String], Date?) -> Bool
-    /// Handles task ids dropped at a time on the week grid.
-    var dropAt: ([String], Date) -> Bool
+    /// What moves when an item is dragged: the item, or the whole selection when it's part of it.
+    var dragGroup: (TaskItem.ID) -> Set<TaskItem.ID>
+    /// Moves dragged items (with the one under the pointer as anchor) to where they were dropped.
+    var dropDragged: (Set<TaskItem.ID>, _ anchor: TaskItem.ID, CalendarDropTarget?) -> Void
     var toggleDone: (Set<TaskItem.ID>) -> Void
     var delete: (Set<TaskItem.ID>) -> Void
     /// Whether a task's details popover is open; setting false closes it.
     var detailsShown: (TaskItem.ID) -> Binding<Bool>
+
+    /// Does nothing, for chips drawn only as a picture, such as the one following a drag.
+    @MainActor static let inert = CalendarActions(
+        select: { _, _ in }, clearSelection: {}, add: { _ in }, addEvent: { _, _ in },
+        dragGroup: { [$0] }, dropDragged: { _, _, _ in }, toggleDone: { _ in }, delete: { _ in },
+        detailsShown: { _ in .constant(false) }
+    )
 }
 
 struct CalendarView: View {
@@ -35,6 +42,7 @@ struct CalendarView: View {
     let detailsShown: (TaskItem.ID) -> Binding<Bool>
 
     @SceneStorage("calendarTrayShown") private var isTrayShown = false
+    @State private var drag = CalendarDragState()
     @FocusState private var isFocused: Bool
 
     var body: some View {
@@ -67,6 +75,11 @@ struct CalendarView: View {
                 }
             }
         }
+        .coordinateSpace(.named(CalendarDragState.space))
+        .overlay(alignment: .topLeading) {
+            CalendarDragPreview()
+        }
+        .environment(drag)
         .background(.background)
         .focusable()
         .focusEffectDisabled()
@@ -146,17 +159,20 @@ struct CalendarView: View {
             },
             add: onAdd,
             addEvent: onAddEvent,
-            drop: { items, day in
-                let dragged = Set(items.compactMap(UUID.init(uuidString:)))
-                guard !dragged.isEmpty else { return false }
-                onReschedule(withSelection(dragged), day)
-                return true
-            },
-            dropAt: { items, date in
-                let dragged = items.compactMap(UUID.init(uuidString:))
-                guard let anchor = dragged.first else { return false }
-                onMove(withSelection(Set(dragged)), anchor, date)
-                return true
+            dragGroup: { withSelection([$0]) },
+            dropDragged: { ids, anchor, target in
+                guard let target else { return }
+                // Items slide into their new place rather than jumping there.
+                withAnimation(.snappy(duration: 0.25)) {
+                    switch target {
+                    case .day(let day):
+                        onReschedule(ids, day)
+                    case .time(let day, let minute):
+                        onMove(ids, anchor, EventLayout.date(on: day, minute: minute))
+                    case .undated:
+                        onReschedule(ids, nil)
+                    }
+                }
             },
             toggleDone: onToggleDone,
             delete: onDelete,
@@ -193,22 +209,25 @@ struct DayNumber: View {
     }
 }
 
-private struct CalendarDropTarget: ViewModifier {
+private struct CalendarDayTarget: ViewModifier {
     let day: Date?
     let actions: CalendarActions
-    @State private var isTargeted = false
+    @Environment(CalendarDragState.self) private var drag
 
     func body(content: Content) -> some View {
+        let isTargeted = switch drag.target {
+        case .day(let target): target == day
+        case .undated: day == nil
+        default: false
+        }
+
         content
             .background(isTargeted ? Color.accentColor.opacity(0.12) : .clear)
+            .animation(.easeOut(duration: 0.12), value: isTargeted)
             .contentShape(.rect)
             .onTapGesture(count: 2) { actions.add(day) }
             .onTapGesture { actions.clearSelection() }
-            .dropDestination(for: String.self) { items, _ in
-                actions.drop(items, day)
-            } isTargeted: {
-                isTargeted = $0
-            }
+            .calendarDropZone(day.map(CalendarDropZone.day) ?? .undated)
     }
 }
 
@@ -216,6 +235,6 @@ extension View {
     /// Accepts dropped tasks, adds a task on double-click and clears the selection on click.
     /// A `nil` day means "no due date".
     func calendarDropTarget(day: Date?, actions: CalendarActions) -> some View {
-        modifier(CalendarDropTarget(day: day, actions: actions))
+        modifier(CalendarDayTarget(day: day, actions: actions))
     }
 }

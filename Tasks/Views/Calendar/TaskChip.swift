@@ -8,6 +8,7 @@ struct TaskChip: View {
     let actions: CalendarActions
     /// The calendar day this chip sits on. An event that started on an earlier day shows no start time there.
     var day: Date?
+    var isDraggable = true
 
     static let height: CGFloat = 18
 
@@ -45,7 +46,7 @@ struct TaskChip: View {
         .onTapGesture {
             actions.select(task.id, NSEvent.modifierFlags.contains(.command))
         }
-        .draggable(task.id.uuidString)
+        .modifier(DragSourceIfEnabled(task: task, actions: actions, isEnabled: isDraggable))
         .contextMenu {
             if !task.isEvent {
                 Button(task.done ? "Mark as Not Done" : "Mark as Done") {
@@ -75,5 +76,19 @@ struct TaskChip: View {
         // Events sit on a plain background with their bar; tasks get a tinted chip.
         if task.isEvent { return .clear }
         return task.isOverdue() ? .red.opacity(0.15) : .accentColor.opacity(0.15)
+    }
+}
+
+private struct DragSourceIfEnabled: ViewModifier {
+    let task: TaskItem
+    let actions: CalendarActions
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.calendarDragSource(task: task, actions: actions)
+        } else {
+            content
+        }
     }
 }

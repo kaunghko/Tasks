@@ -16,7 +16,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
   - Today lists events that haven't ended yet. Events fade once they're over and never count as completed.
 - Calendar with Month and Week views, similar to Calendar.app:
   - The Week view is an hourly grid. Events are blocks sized by their length, overlapping ones sit side by side, and a red line marks the current time. Tasks sit in the all-day row.
-  - Drag a task to another day to reschedule it. Drag an event onto the hour grid to change its day and time. Dropped on another day in the Month view, it keeps its time.
+  - Drag a task to another day to reschedule it. Drag an event onto the hour grid to change its day and time. Dropped on another day in the Month view, it keeps its time. While you drag, the item dims in place and a preview shows where it will land: an event block slides between 15-minute slots on the hour grid, and a chip follows the pointer over highlighted days.
   - Double-click a day to add a task due that day.
   - Show a "No Due Date" tray. Drag tasks from it onto a day, or drop a task on it to clear the due date.
 - ⌘K search palette that jumps to tasks and views:
@@ -107,10 +107,12 @@ Tasks/
   Model/                      TaskFile, TaskItem (tolerant Codable), Subtask + Checklist (`- [ ]` parsing),
                               TaskFilter (filter + sort),
                               CalendarGrid (month/week date math) + EventLayout (week grid placement),
+                              CalendarDrop (drag target under the pointer),
                               SearchPalette (query parsing + result ranking)
   Views/                      ContentView (split view), TaskRow, TaskDetailView (popover),
                               NotesEditor (subtask checklist + notes), WindowKeyMonitor
-  Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray
+  Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray,
+                              CalendarDragging (live drag state, drop zones, previews)
   Views/Search/               SearchPaletteView (⌘K palette)
   Updates/                    CheckForUpdatesView (Sparkle menu item)
   AppIcon.icon                Icon Composer app icon

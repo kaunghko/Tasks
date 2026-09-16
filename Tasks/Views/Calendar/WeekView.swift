@@ -13,6 +13,9 @@ struct WeekView: View {
     static let gutterWidth: CGFloat = 52
     private static let maxAllDayRows = 3
 
+    /// The hour grid's scroll view, for placing the drag preview over it.
+    @State private var viewport: CGRect = .zero
+
     var body: some View {
         let days = CalendarGrid.weekDays(containing: visibleDate)
 
@@ -97,6 +100,13 @@ struct WeekView: View {
                 }
                 .frame(height: Self.hourHeight * 24)
             }
+            .onGeometryChange(for: CGRect.self) { $0.frame(in: .named(CalendarDragState.space)) } action: {
+                viewport = $0
+            }
+            .overlay(alignment: .topLeading) {
+                TimeGridDropPreview(viewport: viewport)
+            }
+            .clipped()
             .onAppear {
                 // Start just above the current hour this week, or at the start of a working day.
                 let calendar = Calendar.current
@@ -152,7 +162,7 @@ private struct DayTimeline: View {
     let selection: Set<TaskItem.ID>
     let actions: CalendarActions
 
-    @State private var isTargeted = false
+    @Environment(CalendarDragState.self) private var drag
     /// The minutes covered while dragging across empty grid to create an event.
     @State private var draft: (start: Int, end: Int)?
 
@@ -200,7 +210,8 @@ private struct DayTimeline: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(isTargeted ? Color.accentColor.opacity(0.08) : .clear)
+        .background(isTaskTargeted ? Color.accentColor.opacity(0.08) : .clear)
+        .animation(.easeOut(duration: 0.12), value: isTaskTargeted)
         .contentShape(.rect)
         // Drag across empty hours to create an event there. A drag that starts on an event
         // moves that event instead, since the block's own drag wins.
@@ -225,11 +236,12 @@ private struct DayTimeline: View {
             actions.addEvent(start, start.addingTimeInterval(TaskItem.defaultEventDuration))
         }
         .onTapGesture { actions.clearSelection() }
-        .dropDestination(for: String.self) { items, location in
-            actions.dropAt(items, date(atY: location.y))
-        } isTargeted: {
-            isTargeted = $0
-        }
+        .calendarDropZone(.timeline(day))
+    }
+
+    /// A task dragged over the grid moves to this day; events show a block at their new time instead.
+    private var isTaskTargeted: Bool {
+        drag.target == .day(day) && drag.session?.task.isEvent == false
     }
 
     private func date(atY y: CGFloat) -> Date {
@@ -348,7 +360,7 @@ private struct EventBlock: View {
         .onTapGesture {
             actions.select(task.id, NSEvent.modifierFlags.contains(.command))
         }
-        .draggable(task.id.uuidString)
+        .calendarDragSource(task: task, actions: actions)
         .contextMenu {
             Button("Delete", role: .destructive) {
                 actions.delete([task.id])
