@@ -332,7 +332,7 @@ struct ContentView: View {
     /// Moves tasks to a day, or clears their due date when `day` is nil.
     /// Events keep their times, and can't lose their date. Repeating events move as a series,
     /// by as many days as the dragged `anchor` occurrence.
-    private func reschedule(_ ids: Set<TaskItem.ID>, anchor: TaskItem?, to day: Date?) {
+    private func reschedule(_ ids: Set<TaskItem.ID>, anchor: TaskItem?, to day: Date?, clearsTime: Bool) {
         let calendar = Calendar.current
         var tasks = document.file.tasks
         let days = day.flatMap { day in
@@ -345,6 +345,9 @@ struct ContentView: View {
                 }
             } else if let day {
                 tasks[index].move(toDay: day)
+                if clearsTime {
+                    tasks[index].dueTime = nil
+                }
             } else if !tasks[index].isEvent {
                 tasks[index].due = nil
             }
@@ -353,20 +356,22 @@ struct ContentView: View {
         document.file.tasks = tasks
     }
 
-    /// A drop on the week grid: the anchor event starts at `start`, other selected events shift
-    /// by the same amount, and tasks move to that day.
+    /// A drop on the week grid: the anchor starts or is due at `start`, other timed items shift
+    /// by the same amount, and untimed tasks become due at `start`.
     private func move(_ ids: Set<TaskItem.ID>, anchor: TaskItem, to start: Date) {
         var tasks = document.file.tasks
         // From the dragged occurrence, so a repeating series moves by as much as that one did.
-        let offset = anchor.start.map { start.timeIntervalSince($0) }
+        let offset = anchor.scheduledTime.map { start.timeIntervalSince($0) }
         for index in tasks.indices where ids.contains(tasks[index].id) {
             if tasks[index].isRepeatingEvent, let eventStart = tasks[index].start, let offset {
                 tasks[index].moveSeries(toStart: eventStart.addingTimeInterval(offset))
-            } else if let eventStart = tasks[index].start, let offset {
-                tasks[index].move(toStart: eventStart.addingTimeInterval(offset))
-            } else {
-                // Dragged along with a task: events keep their time of day, tasks just change day.
+            } else if let time = tasks[index].scheduledTime, let offset {
+                tasks[index].move(toTime: time.addingTimeInterval(offset))
+            } else if tasks[index].isEvent {
+                // Dragged along with an untimed task: events keep their time of day.
                 tasks[index].move(toDay: start)
+            } else {
+                tasks[index].move(toTime: start)
             }
         }
         guard tasks != document.file.tasks else { return }

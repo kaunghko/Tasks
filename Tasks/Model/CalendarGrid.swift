@@ -107,26 +107,32 @@ struct EventPlacement: Equatable {
     let columnCount: Int
 }
 
-/// Lays out timed events in a day, kept free of SwiftUI so it can be tested.
+/// Lays out timed events and tasks in a day, kept free of SwiftUI so it can be tested.
 enum EventLayout {
     static let minutesPerDay = 24 * 60
     /// Short events still get a block tall enough to click.
     static let minimumMinutes = 15
     static let snapMinutes = 15
+    /// A timed task has no length; on the grid it takes this much room.
+    static let taskMinutes = 30
 
-    static func placements(for events: [TaskItem], on day: Date, calendar: Calendar = .current) -> [EventPlacement] {
+    /// Events span their start to end; a timed task takes `taskMinutes` from its due time.
+    /// Items without a time are skipped.
+    static func placements(for items: [TaskItem], on day: Date, calendar: Calendar = .current) -> [EventPlacement] {
         let dayStart = calendar.startOfDay(for: day)
         guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
 
         // Wall-clock minutes, so blocks line up with the hour labels on daylight-saving days too.
-        let spans: [(id: TaskItem.ID, start: Int, end: Int)] = events
-            .compactMap { event in
-                guard let start = event.start, let end = event.end, start < dayEnd, end > dayStart else { return nil }
+        let spans: [(id: TaskItem.ID, start: Int, end: Int)] = items
+            .compactMap { item in
+                guard let start = item.scheduledTime else { return nil }
+                let end = item.end ?? start.addingTimeInterval(TimeInterval(taskMinutes * 60))
+                guard start < dayEnd, end > dayStart else { return nil }
                 var from = start <= dayStart ? 0 : minuteOfDay(start, calendar: calendar)
                 var to = end >= dayEnd ? minutesPerDay : minuteOfDay(end, calendar: calendar)
                 to = min(max(to, from + minimumMinutes), minutesPerDay)
                 from = min(from, to - minimumMinutes)
-                return (event.id, from, to)
+                return (item.id, from, to)
             }
             .sorted { ($0.start, -$0.end) < ($1.start, -$1.end) }
 

@@ -88,6 +88,24 @@ struct EventTests {
         #expect(!task.isEvent)
     }
 
+    @Test func moveToTimeSetsATasksDueDayAndTime() {
+        var task = TaskItem(title: "Essay", due: day("2026-09-15"))
+        task.move(toTime: at("2026-09-17", hour: 15, minute: 30))
+
+        #expect(task.due == day("2026-09-17"))
+        #expect(task.dueTime == TimeOfDay(hour: 15, minute: 30))
+        #expect(!task.isEvent)
+    }
+
+    @Test func moveToTimeKeepsAnEventsLength() {
+        var event = lecture
+        event.move(toTime: at("2026-09-16", hour: 14))
+
+        #expect(event.start == at("2026-09-16", hour: 14))
+        #expect(event.end == at("2026-09-16", hour: 15, minute: 15))
+        #expect(event.dueTime == nil)
+    }
+
     @Test func makeEventRestoresPreviousTimesOnTheCurrentDueDay() {
         var item = lecture
         let previous = (start: item.start!, end: item.end!)

@@ -158,7 +158,7 @@ struct CalendarDragPreview: View {
     }
 }
 
-/// Where a dragged event will land on the hour grid: a block at the snapped time that slides
+/// Where a dragged event or task will land on the hour grid: a block at the snapped time that slides
 /// from slot to slot and across days. Placed over the grid's scroll view and clipped to it.
 struct TimeGridDropPreview: View {
     /// The scroll view's frame in the drag coordinate space.
@@ -169,12 +169,14 @@ struct TimeGridDropPreview: View {
         if let session = drag.session, case .time(let day, let minute) = drag.target,
            let column = drag.zones[.timeline(day)] {
             let hourHeight = WeekView.hourHeight
-            let duration = session.task.end.flatMap { end in session.task.start.map { end.timeIntervalSince($0) } }
-                ?? TaskItem.defaultEventDuration
+            let task = session.task
+            let duration = task.isEvent
+                ? task.end.flatMap { end in task.start.map { end.timeIntervalSince($0) } } ?? TaskItem.defaultEventDuration
+                : TimeInterval(EventLayout.taskMinutes * 60)
             let minutes = min(max(Int(duration / 60), EventLayout.minimumMinutes), EventLayout.minutesPerDay - minute)
             let start = EventLayout.date(on: day, minute: minute)
 
-            MovingEventBlock(title: session.task.title, start: start, end: start.addingTimeInterval(duration))
+            MovingEventBlock(title: task.title, start: start, end: task.isEvent ? start.addingTimeInterval(duration) : nil)
                 .frame(width: max(column.width - 8, 0), height: max(CGFloat(minutes) / 60 * hourHeight - 2, 0))
                 .offset(
                     x: column.minX - viewport.minX + 1,
@@ -189,17 +191,19 @@ struct TimeGridDropPreview: View {
 private struct MovingEventBlock: View {
     let title: String
     let start: Date
-    let end: Date
+    /// Nil for a task, which shows only its due time.
+    let end: Date?
 
     var body: some View {
         let time: Date.FormatStyle = .dateTime.hour().minute()
+        let label = end.map { "\(start.formatted(time))–\($0.formatted(time))" } ?? start.formatted(time)
 
         HStack(spacing: 0) {
             Rectangle().fill(.white.opacity(0.7)).frame(width: 3)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title.isEmpty ? "Untitled" : title)
                     .font(.callout.weight(.semibold))
-                Text("\(start.formatted(time))–\(end.formatted(time))")
+                Text(label)
                     .font(.caption)
                     .monospacedDigit()
                     .contentTransition(.numericText())

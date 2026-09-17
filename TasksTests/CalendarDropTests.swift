@@ -11,8 +11,8 @@ struct CalendarDropTests {
     // A week layout: two all-day cells above two hour-grid columns scrolled up by 400pt,
     // so the grid's frame runs on under the all-day row.
     private let zones: [CalendarDropZone: CGRect] = [
-        .day(day("2026-09-15")): CGRect(x: 0, y: 0, width: 100, height: 40),
-        .day(day("2026-09-16")): CGRect(x: 100, y: 0, width: 100, height: 40),
+        .allDay(day("2026-09-15")): CGRect(x: 0, y: 0, width: 100, height: 40),
+        .allDay(day("2026-09-16")): CGRect(x: 100, y: 0, width: 100, height: 40),
         .timeline(day("2026-09-15")): CGRect(x: 0, y: -360, width: 100, height: 1152),
         .timeline(day("2026-09-16")): CGRect(x: 100, y: -360, width: 100, height: 1152),
         .undated: CGRect(x: 200, y: 0, width: 80, height: 600),
@@ -24,6 +24,13 @@ struct CalendarDropTests {
 
     @Test func allDayRowWinsOverTheGridBeneathIt() {
         #expect(target(150, 20) == .day(day("2026-09-16")))
+        #expect(target(150, 20, isEvent: false) == .allDay(day("2026-09-16")))
+    }
+
+    @Test func monthCellsKeepTheTime() {
+        let zones: [CalendarDropZone: CGRect] = [.day(day("2026-09-15")): CGRect(x: 0, y: 0, width: 100, height: 100)]
+        let target = CalendarDrop.target(at: CGPoint(x: 50, y: 50), zones: zones, isEvent: false, grabOffsetY: 0, hourHeight: 48)
+        #expect(target == .day(day("2026-09-15")))
     }
 
     @Test func eventsLandAtTheSnappedTimeOfTheirTopEdge() {
@@ -32,8 +39,8 @@ struct CalendarDropTests {
         #expect(target(150, 240, grab: 30) == .time(day: day("2026-09-16"), minute: 720))
     }
 
-    @Test func tasksOverTheGridMoveToThatDay() {
-        #expect(target(150, 240, isEvent: false) == .day(day("2026-09-16")))
+    @Test func tasksOverTheGridLandAtThatTime() {
+        #expect(target(150, 240, isEvent: false, grab: 30) == .time(day: day("2026-09-16"), minute: 720))
     }
 
     @Test func onlyTasksCanLoseTheirDate() {

@@ -320,6 +320,16 @@ extension TaskItem {
         move(toStart: newStart)
     }
 
+    /// Moves an event to a new start, keeping its length, or makes a task due at that day and time.
+    mutating func move(toTime date: Date, calendar: Calendar = .current) {
+        guard !isEvent else {
+            move(toStart: date)
+            return
+        }
+        due = calendar.startOfDay(for: date)
+        dueTime = TimeOfDay(of: date, calendar: calendar)
+    }
+
     /// Moves an event to a new start, keeping its length. Does nothing to a task.
     mutating func move(toStart newStart: Date) {
         guard let start else { return }

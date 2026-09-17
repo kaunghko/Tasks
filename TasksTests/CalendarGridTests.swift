@@ -104,6 +104,22 @@ struct CalendarGridTests {
         #expect(byID[d.id] == EventPlacement(id: d.id, startMinute: 780, endMinute: 840, column: 0, columnCount: 1))
     }
 
+    @Test func timedTasksTakeHalfAnHourBesideEvents() {
+        let lecture = event("Lecture", 9, 10)
+        let essay = TaskItem(title: "Essay", due: day("2026-09-15"), dueTime: TimeOfDay(hour: 9, minute: 30))
+        let late = TaskItem(title: "Late", due: day("2026-09-15"), dueTime: TimeOfDay(hour: 23, minute: 45))
+        let untimed = TaskItem(title: "Untimed", due: day("2026-09-15"))
+
+        let placements = EventLayout.placements(for: [lecture, essay, late, untimed], on: day("2026-09-15"))
+        let byID = Dictionary(uniqueKeysWithValues: placements.map { ($0.id, $0) })
+
+        #expect(byID[essay.id] == EventPlacement(id: essay.id, startMinute: 570, endMinute: 600, column: 1, columnCount: 2))
+        #expect(byID[lecture.id]?.columnCount == 2)
+        #expect(byID[late.id].map { ($0.startMinute, $0.endMinute) } ?? (0, 0) == (1425, 1440))
+        #expect(byID[untimed.id] == nil)
+        #expect(EventLayout.placements(for: [essay], on: day("2026-09-16")).isEmpty)
+    }
+
     @Test func placementsClipToTheDayAndKeepAMinimumHeight() {
         let overnight = event("Overnight", 22, 26)
         let blip = TaskItem(title: "Blip", start: day("2026-09-16").addingTimeInterval(23.95 * 3600),

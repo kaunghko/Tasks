@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Calendar.app-style week: tasks in an all-day strip, events as blocks on an hourly grid.
+/// Calendar.app-style week: tasks without a time in an all-day strip, events and timed tasks on an hourly grid.
 struct WeekView: View {
     let visibleDate: Date
     @Binding var tasks: [TaskItem]
@@ -57,7 +57,7 @@ struct WeekView: View {
     }
 
     private func allDayStrip(_ days: [Date]) -> some View {
-        let dayTasks = days.map { day in (tasksByDay[day] ?? []).filter { !$0.isEvent } }
+        let dayTasks = days.map { day in (tasksByDay[day] ?? []).filter { $0.scheduledTime == nil } }
         let rows = min(max(dayTasks.map(\.count).max() ?? 0, 1), Self.maxAllDayRows)
         let height = CGFloat(rows) * (TaskChip.height + 2) + 8
 
@@ -72,7 +72,7 @@ struct WeekView: View {
                 .padding(4)
             }
             .frame(maxWidth: .infinity)
-            .calendarDropTarget(day: day, actions: actions)
+            .calendarDropTarget(day: day, actions: actions, allDay: true)
         }
         .frame(height: height)
     }
@@ -93,7 +93,7 @@ struct WeekView: View {
                     DayTimeline(
                         day: day,
                         tasks: $tasks,
-                        events: (tasksByDay[day] ?? []).filter(\.isEvent),
+                        items: (tasksByDay[day] ?? []).filter { $0.scheduledTime != nil },
                         selection: selection,
                         actions: actions
                     )
@@ -153,23 +153,22 @@ private struct HourGutter: View {
     }
 }
 
-/// One day of the hourly grid: hour lines, event blocks side by side when they overlap,
-/// and the red now-line on today.
+/// One day of the hourly grid: hour lines, event blocks and timed task chips side by side
+/// when they overlap, and the red now-line on today.
 private struct DayTimeline: View {
     let day: Date
     @Binding var tasks: [TaskItem]
-    let events: [TaskItem]
+    let items: [TaskItem]
     let selection: Set<TaskItem.ID>
     let actions: CalendarActions
 
-    @Environment(CalendarDragState.self) private var drag
     /// The minutes covered while dragging across empty grid to create an event.
     @State private var draft: (start: Int, end: Int)?
 
     private var hourHeight: CGFloat { WeekView.hourHeight }
 
     var body: some View {
-        let placements = EventLayout.placements(for: events, on: day)
+        let placements = EventLayout.placements(for: items, on: day)
 
         ZStack(alignment: .topLeading) {
             ForEach(1..<24, id: \.self) { hour in
@@ -184,14 +183,27 @@ private struct DayTimeline: View {
                 ForEach(placements, id: \.id) { placement in
                     let columnWidth = width / CGFloat(placement.columnCount)
                     let height = CGFloat(placement.endMinute - placement.startMinute) / 60 * hourHeight
-                    EventBlock(
-                        task: $tasks[id: placement.id],
-                        occurrence: events.first { $0.id == placement.id },
-                        height: height - 2,
-                        isSelected: selection.contains(placement.id),
-                        actions: actions
-                    )
-                    .frame(width: max(columnWidth - 2, 0), height: max(height - 2, 0))
+                    let item = items.first { $0.id == placement.id }
+                    Group {
+                        if item?.isEvent == false {
+                            TaskChip(
+                                task: $tasks[id: placement.id],
+                                occurrence: item,
+                                isSelected: selection.contains(placement.id),
+                                actions: actions,
+                                day: day
+                            )
+                        } else {
+                            EventBlock(
+                                task: $tasks[id: placement.id],
+                                occurrence: item,
+                                height: height - 2,
+                                isSelected: selection.contains(placement.id),
+                                actions: actions
+                            )
+                        }
+                    }
+                    .frame(width: max(columnWidth - 2, 0), height: max(height - 2, 0), alignment: .top)
                     // Padding rather than offset, so the details popover points at the block itself.
                     .padding(.leading, CGFloat(placement.column) * columnWidth + 1)
                     .padding(.top, CGFloat(placement.startMinute) / 60 * hourHeight + 1)
@@ -211,11 +223,9 @@ private struct DayTimeline: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(isTaskTargeted ? Color.accentColor.opacity(0.08) : .clear)
-        .animation(.easeOut(duration: 0.12), value: isTaskTargeted)
         .contentShape(.rect)
-        // Drag across empty hours to create an event there. A drag that starts on an event
-        // moves that event instead, since the block's own drag wins.
+        // Drag across empty hours to create an event there. A drag that starts on an event or task
+        // moves it instead, since its own drag wins.
         .gesture(
             DragGesture(minimumDistance: 4, coordinateSpace: .local)
                 .onChanged { value in
@@ -238,11 +248,6 @@ private struct DayTimeline: View {
         }
         .onTapGesture { actions.clearSelection() }
         .calendarDropZone(.timeline(day))
-    }
-
-    /// A task dragged over the grid moves to this day; events show a block at their new time instead.
-    private var isTaskTargeted: Bool {
-        drag.target == .day(day) && drag.session?.task.isEvent == false
     }
 
     private func date(atY y: CGFloat) -> Date {

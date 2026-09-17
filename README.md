@@ -15,8 +15,8 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
   - Events show a colored bar instead of a checkbox, and their time range, such as `09:00–10:15`.
   - Today lists events that haven't ended yet. Events fade once they're over and never count as completed.
 - Calendar with Month and Week views, similar to Calendar.app:
-  - The Week view is an hourly grid. Events are blocks sized by their length, overlapping ones sit side by side, and a red line marks the current time. Tasks sit in the all-day row.
-  - Drag a task to another day to reschedule it. Drag an event onto the hour grid to change its day and time. Dropped on another day in the Month view, it keeps its time. While you drag, the item dims in place and a preview shows where it will land: an event block slides between 15-minute slots on the hour grid, and a chip follows the pointer over highlighted days.
+  - The Week view is an hourly grid. Events are blocks sized by their length, overlapping ones sit side by side, and a red line marks the current time. Tasks with a due time sit on the grid at that time and take up half an hour. Other tasks sit in the all-day row.
+  - Drag a task to another day to reschedule it. Drag an event or task onto the hour grid to change its day and time, which gives an untimed task a due time. Drop a timed task on the all-day row to remove its time. Dropped on another day in the Month view, an item keeps its time. While you drag, the item dims in place and a preview shows where it will land: a block slides between 15-minute slots on the hour grid, and a chip follows the pointer over highlighted days.
   - Double-click a day to add a task due that day.
   - Show a "No Due Date" tray. Drag tasks from it onto a day, or drop a task on it to clear the due date.
 - ⌘K search palette that jumps to tasks and views:
@@ -141,7 +141,7 @@ Tasks/
   Model/                      TaskFile, TaskItem (tolerant Codable), Subtask + Checklist (`- [ ]` parsing),
                               Recurrence (repeat rules, occurrences),
                               TaskFilter (filter + sort),
-                              CalendarGrid (month/week date math) + EventLayout (week grid placement),
+                              CalendarGrid (month/week date math) + EventLayout (week grid placement of events and timed tasks),
                               CalendarDrop (drag target under the pointer),
                               SearchPalette (query parsing + result ranking),
                               ScheduleParser (dates, times and repeat rules typed into titles)

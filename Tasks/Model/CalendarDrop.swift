@@ -4,8 +4,10 @@ import Foundation
 /// A place in the calendar that accepts dragged tasks. Frames are reported in one shared
 /// coordinate space, so a drag can cross from one zone to another.
 enum CalendarDropZone: Hashable {
-    /// A month cell or the Week view's all-day row: moves to that day.
+    /// A month cell: moves to that day.
     case day(Date)
+    /// The Week view's all-day row: moves to that day, and tasks lose their time.
+    case allDay(Date)
     /// A day column of the Week view's hour grid.
     case timeline(Date)
     /// The "No Due Date" tray.
@@ -15,14 +17,16 @@ enum CalendarDropZone: Hashable {
 /// Where a drag would land if it ended now.
 enum CalendarDropTarget: Equatable {
     case day(Date)
-    /// An event's new start, as a day and a minute of that day.
+    /// A task's new day without a time.
+    case allDay(Date)
+    /// An event's new start or a task's new due time, as a day and a minute of that day.
     case time(day: Date, minute: Int)
     case undated
 
     /// The day (or column) to highlight.
     var day: Date? {
         switch self {
-        case .day(let day), .time(let day, _): day
+        case .day(let day), .allDay(let day), .time(let day, _): day
         case .undated: nil
         }
     }
@@ -45,6 +49,8 @@ enum CalendarDrop {
         for (zone, frame) in zones where frame.contains(point) {
             switch zone {
             case .day(let day): return .day(day)
+            // Events already sit on the grid, so the all-day row just changes their day.
+            case .allDay(let day): return isEvent ? .day(day) : .allDay(day)
             // Events always keep a date.
             case .undated: return isEvent ? nil : .undated
             case .timeline: continue
@@ -52,7 +58,6 @@ enum CalendarDrop {
         }
         for (zone, frame) in zones where frame.contains(point) {
             guard case .timeline(let day) = zone else { continue }
-            guard isEvent else { return .day(day) }
             let minute = startMinute(topY: point.y - grabOffsetY - frame.minY, hourHeight: hourHeight)
             return .time(day: day, minute: minute)
         }

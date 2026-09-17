@@ -34,10 +34,11 @@ struct CalendarView: View {
     let onAdd: (Date?) -> Void
     let onAddEvent: (Date, Date) -> Void
     /// Moves tasks to a day, or clears their due date when it's nil. The anchor is the dragged
-    /// occurrence, so repeating events move by as many days as it did.
-    let onReschedule: (Set<TaskItem.ID>, _ anchor: TaskItem?, Date?) -> Void
-    /// Moves tasks to a time: the anchor event starts then, other events shift by as much,
-    /// and tasks move to that day.
+    /// occurrence, so repeating events move by as many days as it did. With `clearsTime`,
+    /// tasks lose their due time.
+    let onReschedule: (Set<TaskItem.ID>, _ anchor: TaskItem?, Date?, _ clearsTime: Bool) -> Void
+    /// Moves items to a time: the anchor starts or is due then, other timed items shift by as much,
+    /// and untimed tasks become due then.
     let onMove: (Set<TaskItem.ID>, _ anchor: TaskItem, Date) -> Void
     let onToggleDone: (Set<TaskItem.ID>) -> Void
     let onDelete: (Set<TaskItem.ID>) -> Void
@@ -172,11 +173,13 @@ struct CalendarView: View {
                 withAnimation(.snappy(duration: 0.25)) {
                     switch target {
                     case .day(let day):
-                        onReschedule(ids, anchor, day)
+                        onReschedule(ids, anchor, day, false)
+                    case .allDay(let day):
+                        onReschedule(ids, anchor, day, true)
                     case .time(let day, let minute):
                         onMove(ids, anchor, EventLayout.date(on: day, minute: minute))
                     case .undated:
-                        onReschedule(ids, anchor, nil)
+                        onReschedule(ids, anchor, nil, false)
                     }
                 }
             },
@@ -218,11 +221,12 @@ struct DayNumber: View {
 private struct CalendarDayTarget: ViewModifier {
     let day: Date?
     let actions: CalendarActions
+    let allDay: Bool
     @Environment(CalendarDragState.self) private var drag
 
     func body(content: Content) -> some View {
         let isTargeted = switch drag.target {
-        case .day(let target): target == day
+        case .day(let target), .allDay(let target): target == day
         case .undated: day == nil
         default: false
         }
@@ -233,14 +237,14 @@ private struct CalendarDayTarget: ViewModifier {
             .contentShape(.rect)
             .onTapGesture(count: 2) { actions.add(day) }
             .onTapGesture { actions.clearSelection() }
-            .calendarDropZone(day.map(CalendarDropZone.day) ?? .undated)
+            .calendarDropZone(day.map { allDay ? .allDay($0) : .day($0) } ?? .undated)
     }
 }
 
 extension View {
     /// Accepts dropped tasks, adds a task on double-click and clears the selection on click.
-    /// A `nil` day means "no due date".
-    func calendarDropTarget(day: Date?, actions: CalendarActions) -> some View {
-        modifier(CalendarDayTarget(day: day, actions: actions))
+    /// A `nil` day means "no due date". The Week view's `allDay` row also clears a task's time.
+    func calendarDropTarget(day: Date?, actions: CalendarActions, allDay: Bool = false) -> some View {
+        modifier(CalendarDayTarget(day: day, actions: actions, allDay: allDay))
     }
 }
