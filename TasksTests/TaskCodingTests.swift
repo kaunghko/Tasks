@@ -92,6 +92,50 @@ struct TaskCodingTests {
         #expect(task.due == TaskDates.parse("2026-09-22"))
     }
 
+    @Test func repeatRoundTripsAndOmitsDefaults() throws {
+        let created = try #require(TaskDates.parse("2026-09-15T09:00:00Z"))
+        let start = try #require(TaskDates.parse("2026-09-14T09:00:00+09:00"))
+        let original = TaskFile(tasks: [
+            TaskItem(title: "Stretch", due: TaskDates.parse("2026-09-15"),
+                     recurrence: Recurrence(frequency: .daily), createdAt: created),
+            TaskItem(title: "Lecture", start: start,
+                     recurrence: Recurrence(frequency: .weekly, interval: 2, weekdays: [.wed, .mon],
+                                            until: TaskDates.parse("2026-12-19")),
+                     createdAt: created),
+        ])
+
+        let data = try original.encoded()
+        #expect(try TaskFile.decode(data) == original)
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let tasks = try #require(json?["tasks"] as? [[String: Any]])
+        let daily = try #require(tasks[0]["repeat"] as? [String: Any])
+        #expect(daily as NSDictionary == ["frequency": "daily"] as NSDictionary)
+        let weekly = try #require(tasks[1]["repeat"] as? [String: Any])
+        #expect(weekly as NSDictionary == [
+            "frequency": "weekly", "interval": 2, "weekdays": ["mon", "wed"], "until": "2026-12-19",
+        ] as NSDictionary)
+    }
+
+    @Test(arguments: [
+        (#"{"frequency": "Weekly", "weekdays": ["mon", "someday"], "interval": 0, "until": "later"}"#,
+         Recurrence(frequency: .weekly, weekdays: [.mon])),
+        (#"{"frequency": "daily", "weekdays": ["mon"]}"#, Recurrence(frequency: .daily)),
+    ])
+    func repeatDecodesTolerantly(rule: String, expected: Recurrence) throws {
+        let json = #"{"tasks": [{"title": "a", "due": "2026-09-15", "repeat": \#(rule)}]}"#
+        let task = try #require(try TaskFile.decode(Data(json.utf8)).tasks.first)
+        #expect(task.recurrence == expected)
+    }
+
+    @Test(arguments: [#""daily""#, #"{"frequency": "hourly"}"#, #"{"interval": 2}"#])
+    func unreadableRepeatIsDropped(rule: String) throws {
+        let json = #"{"tasks": [{"title": "a", "due": "2026-09-15", "repeat": \#(rule)}]}"#
+        let task = try #require(try TaskFile.decode(Data(json.utf8)).tasks.first)
+        #expect(task.title == "a")
+        #expect(task.recurrence == nil)
+    }
+
     @Test func plainTaskEncodesWithoutEventFields() throws {
         let json = """
         {

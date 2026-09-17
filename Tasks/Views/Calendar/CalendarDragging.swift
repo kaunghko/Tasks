@@ -82,7 +82,7 @@ private struct CalendarDragSource: ViewModifier {
                     }
                     .onEnded { _ in
                         guard let result = drag.finish() else { return }
-                        actions.dropDragged(result.session.ids, result.session.task.id, result.target)
+                        actions.dropDragged(result.session.ids, result.session.task, result.target)
                     }
             )
     }

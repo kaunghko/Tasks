@@ -6,7 +6,14 @@ struct TaskItem: Codable, Identifiable, Hashable {
     var title: String
     var notes: String
     var subtasks: [Subtask]
-    var done: Bool
+    /// Checking off a repeating task moves it to its next occurrence instead; see `rollForward`.
+    var done: Bool {
+        didSet {
+            if done, !oldValue {
+                rollForward()
+            }
+        }
+    }
     /// Start of the local day the task is due. Stored in JSON as `yyyy-MM-dd`.
     /// For an event, the day it starts, kept in step with `start` and not written to JSON.
     var due: Date?
@@ -20,6 +27,9 @@ struct TaskItem: Codable, Identifiable, Hashable {
         }
     }
     var end: Date?
+    /// For a task, the rule its due date moves along when checked off. For an event, the rule its
+    /// occurrences follow, counted from `start`; the calendar shows every occurrence.
+    var recurrence: Recurrence?
     var createdAt: Date
 
     init(
@@ -31,6 +41,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         due: Date? = nil,
         start: Date? = nil,
         end: Date? = nil,
+        recurrence: Recurrence? = nil,
         createdAt: Date = .now
     ) {
         self.id = id
@@ -51,13 +62,14 @@ struct TaskItem: Codable, Identifiable, Hashable {
             self.done = done
             self.due = due.map { Calendar.current.startOfDay(for: $0) }
         }
+        self.recurrence = recurrence
         self.createdAt = TaskDates.wholeSeconds(createdAt)
     }
 
     static let defaultEventDuration: TimeInterval = 3600
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, notes, subtasks, done, due, start, end, createdAt
+        case id, title, notes, subtasks, done, due, start, end, recurrence = "repeat", createdAt
     }
 
     /// Tolerant decoding: only `title` is really expected, everything else has a default,
@@ -78,6 +90,8 @@ struct TaskItem: Codable, Identifiable, Hashable {
             due: date(.due),
             start: date(.start),
             end: date(.end),
+            // A rule that can't be read is dropped rather than failing the whole file.
+            recurrence: (try? container.decodeIfPresent(Recurrence.self, forKey: .recurrence)) ?? nil,
             createdAt: date(.createdAt) ?? .now
         )
     }
@@ -99,6 +113,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
             try container.encode(done, forKey: .done)
             try container.encodeIfPresent(due.map(TaskDates.dayString), forKey: .due)
         }
+        try container.encodeIfPresent(recurrence, forKey: .recurrence)
         try container.encode(TaskDates.timestampString(createdAt), forKey: .createdAt)
     }
 
@@ -162,7 +177,12 @@ struct TaskItem: Codable, Identifiable, Hashable {
 extension TaskItem {
     var hasDueDate: Bool {
         get { due != nil }
-        set { due = newValue ? (due ?? Calendar.current.startOfDay(for: .now)) : nil }
+        set {
+            due = newValue ? (due ?? Calendar.current.startOfDay(for: .now)) : nil
+            if !newValue {
+                recurrence = nil
+            }
+        }
     }
 
     var dueDay: Date {
@@ -249,6 +269,148 @@ extension TaskItem {
         let value = TaskDates.wholeSeconds(newStart)
         self.start = value
         end = value.addingTimeInterval(duration)
+    }
+}
+
+// MARK: - Repeating
+
+extension TaskItem {
+    /// A checked-off repeating task becomes due on its next occurrence that isn't in the past, and
+    /// opens again with its subtasks unchecked. Once the rule has ended, it stays done.
+    mutating func rollForward(now: Date = .now, calendar: Calendar = .current) {
+        guard done, !isEvent, let recurrence, let due else { return }
+        let today = calendar.startOfDay(for: now)
+        guard let next = recurrence.next(after: due, notBefore: today, anchor: due, calendar: calendar) else { return }
+        self.due = calendar.startOfDay(for: next)
+        done = false
+        for index in subtasks.indices {
+            subtasks[index].done = false
+        }
+    }
+
+    /// Copies of a repeating event moved to each occurrence that overlaps `range`, sharing its id.
+    /// Anything else is itself, when it's in the range at all.
+    func occurrences(in range: DateInterval, calendar: Calendar = .current) -> [TaskItem] {
+        guard let start, let end, let recurrence else { return [self] }
+        let duration = end.timeIntervalSince(start)
+        var result: [TaskItem] = []
+        recurrence.forEachOccurrence(from: start, calendar: calendar) { occurrence in
+            guard occurrence < range.end else { return false }
+            if occurrence.addingTimeInterval(duration) > range.start {
+                result.append(moved(to: occurrence, duration: duration))
+            }
+            return true
+        }
+        return result
+    }
+
+    /// The occurrence of a repeating event that lists show: the first one that hasn't ended,
+    /// or the last one once the rule is over. Anything else is itself.
+    func currentOccurrence(now: Date = .now, calendar: Calendar = .current) -> TaskItem {
+        guard let start, let end, let recurrence else { return self }
+        let duration = end.timeIntervalSince(start)
+        var current = start
+        recurrence.forEachOccurrence(from: start, calendar: calendar) { occurrence in
+            current = occurrence
+            return occurrence.addingTimeInterval(duration) <= now
+        }
+        return current == start ? self : moved(to: current, duration: duration)
+    }
+
+    private func moved(to occurrence: Date, duration: TimeInterval) -> TaskItem {
+        var copy = self
+        copy.start = occurrence
+        copy.end = occurrence.addingTimeInterval(duration)
+        return copy
+    }
+
+    var isRepeatingEvent: Bool { isEvent && recurrence != nil }
+
+    /// Moves a whole event series so its stored start lands on `newStart`, keeping its length.
+    /// Weekdays shift by as many days as the start did.
+    mutating func moveSeries(toStart newStart: Date, calendar: Calendar = .current) {
+        guard let start else { return }
+        let days = calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: newStart)
+        ).day ?? 0
+        recurrence = recurrence?.shifted(byDays: days)
+        move(toStart: newStart)
+    }
+
+    /// Moves a whole event series by whole days, keeping its time of day.
+    mutating func moveSeries(byDays days: Int, calendar: Calendar = .current) {
+        guard let start, days != 0, let day = calendar.date(byAdding: .day, value: days, to: calendar.startOfDay(for: start)) else {
+            return
+        }
+        recurrence = recurrence?.shifted(byDays: days)
+        move(toDay: day, calendar: calendar)
+    }
+
+    /// The day occurrences are counted from: an event's start, or a task's due day.
+    private var recurrenceAnchor: Date {
+        start ?? due ?? Calendar.current.startOfDay(for: .now)
+    }
+
+    /// Picking a rule for a task without a due date makes it due today.
+    var repeatFrequency: Recurrence.Frequency? {
+        get { recurrence?.frequency }
+        set {
+            guard let newValue else {
+                recurrence = nil
+                return
+            }
+            guard newValue != recurrence?.frequency else { return }
+            var rule = recurrence ?? Recurrence(frequency: newValue)
+            rule.frequency = newValue
+            if newValue != .weekly {
+                rule.weekdays = []
+            }
+            if !isEvent, due == nil {
+                due = Calendar.current.startOfDay(for: .now)
+            }
+            recurrence = rule
+        }
+    }
+
+    var repeatInterval: Int {
+        get { recurrence?.interval ?? 1 }
+        set { recurrence?.interval = newValue }
+    }
+
+    /// The weekdays a weekly rule shows as picked: its own, or the anchor's when it has none.
+    /// Picking days that leave out the current day moves the item to the next picked day.
+    var repeatWeekdays: Set<Recurrence.Weekday> {
+        get {
+            guard let recurrence else { return [] }
+            return recurrence.weekdays.isEmpty ? [Recurrence.Weekday(of: recurrenceAnchor)] : recurrence.weekdays
+        }
+        set {
+            guard !newValue.isEmpty, recurrence != nil else { return }
+            let calendar = Calendar.current
+            let anchorDay = calendar.startOfDay(for: recurrenceAnchor)
+            let current = Recurrence.Weekday(of: anchorDay, calendar: calendar)
+            if !newValue.contains(current),
+               let days = (1..<7).first(where: { newValue.contains(current.adding(days: $0)) }),
+               let day = calendar.date(byAdding: .day, value: days, to: anchorDay) {
+                move(toDay: day, calendar: calendar)
+            }
+            recurrence?.weekdays = newValue
+        }
+    }
+
+    var hasRepeatEnd: Bool {
+        get { recurrence?.until != nil }
+        set {
+            let calendar = Calendar.current
+            let defaultEnd = calendar.date(byAdding: .month, value: 1, to: calendar.startOfDay(for: recurrenceAnchor))
+            let until = newValue ? (recurrence?.until ?? defaultEnd) : nil
+            recurrence?.until = until
+        }
+    }
+
+    var repeatUntil: Date {
+        get { recurrence?.until ?? Calendar.current.startOfDay(for: recurrenceAnchor) }
+        set { recurrence?.until = Calendar.current.startOfDay(for: newValue) }
     }
 }
 

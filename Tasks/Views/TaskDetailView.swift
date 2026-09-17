@@ -36,6 +36,27 @@ struct TaskDetailView: View {
                 }
             }
 
+            Section {
+                Picker("Repeat", selection: $task.repeatFrequency) {
+                    Text("Never").tag(Recurrence.Frequency?.none)
+                    ForEach(Recurrence.Frequency.allCases) { frequency in
+                        Text(frequency.title).tag(Optional(frequency))
+                    }
+                }
+                if let recurrence = task.recurrence {
+                    Stepper(value: $task.repeatInterval, in: 1...99) {
+                        Text("Every \(recurrence.interval) \(recurrence.frequency.unit(recurrence.interval))")
+                    }
+                    if recurrence.frequency == .weekly {
+                        WeekdayPicker(selection: $task.repeatWeekdays)
+                    }
+                    Toggle("End Repeat", isOn: $task.hasRepeatEnd)
+                    if recurrence.until != nil {
+                        DatePicker("Until", selection: $task.repeatUntil, displayedComponents: .date)
+                    }
+                }
+            }
+
             NotesEditor(task: $task)
 
             Section {
@@ -72,6 +93,37 @@ struct TaskDetailView: View {
                 task = item
             }
         )
+    }
+}
+
+/// Seven round day toggles in the locale's week order. The last picked day can't be unpicked.
+private struct WeekdayPicker: View {
+    @Binding var selection: Set<Recurrence.Weekday>
+
+    var body: some View {
+        let calendar = Calendar.current
+        let days = Recurrence.Weekday.allCases.sorted {
+            $0.offset(firstWeekday: calendar.firstWeekday) < $1.offset(firstWeekday: calendar.firstWeekday)
+        }
+
+        HStack(spacing: 4) {
+            ForEach(days) { day in
+                let isOn = selection.contains(day)
+                Button {
+                    selection.formSymmetricDifference([day])
+                } label: {
+                    Text(calendar.veryShortWeekdaySymbols[day.rawValue - 1])
+                        .font(.caption.weight(.medium))
+                        .frame(width: 24, height: 24)
+                        .foregroundStyle(isOn ? Color.white : .primary)
+                        .background(isOn ? Color.accentColor : Color.secondary.opacity(0.15), in: .circle)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(calendar.weekdaySymbols[day.rawValue - 1])
+                .accessibilityAddTraits(isOn ? .isSelected : [])
+            }
+        }
+        .frame(maxWidth: .infinity)
     }
 }
 

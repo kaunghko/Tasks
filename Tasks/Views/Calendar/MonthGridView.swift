@@ -131,7 +131,7 @@ private struct DayCell: View {
         }
         // Chips in the "more" popover live in another window, outside the calendar's drag space.
         return TaskChip(
-            task: $tasks[id: task.id], isSelected: selection.contains(task.id), actions: chipActions,
+            task: $tasks[id: task.id], occurrence: task, isSelected: selection.contains(task.id), actions: chipActions,
             day: day, isDraggable: !inMorePopover
         )
     }

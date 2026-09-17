@@ -4,6 +4,8 @@ import SwiftUI
 /// A compact, draggable task used in calendar cells and the undated tray.
 struct TaskChip: View {
     @Binding var task: TaskItem
+    /// The occurrence this chip stands for, when a repeating event shows up on many days.
+    var occurrence: TaskItem?
     let isSelected: Bool
     let actions: CalendarActions
     /// The calendar day this chip sits on. An event that started on an earlier day shows no start time there.
@@ -13,12 +15,14 @@ struct TaskChip: View {
     static let height: CGFloat = 18
 
     var body: some View {
+        let shown = occurrence ?? task
+
         HStack(spacing: 4) {
             if task.isEvent {
                 EventBar(color: isSelected ? .white : .accentColor)
                     .padding(.vertical, 3)
                     .padding(.horizontal, 2)
-                if let time = task.startTimeLabel, day.map({ Calendar.current.isDate($0, inSameDayAs: task.start!) }) ?? true {
+                if let time = shown.startTimeLabel, day.map({ Calendar.current.isDate($0, inSameDayAs: shown.start!) }) ?? true {
                     Text(time)
                         .monospacedDigit()
                         // The title truncates first; a cut-off time is useless.
@@ -35,18 +39,24 @@ struct TaskChip: View {
                 .lineLimit(1)
                 .strikethrough(task.done)
                 .foregroundStyle(foreground)
+            if let recurrence = task.recurrence {
+                Image(systemName: "repeat")
+                    .font(.caption2)
+                    .foregroundStyle(isSelected ? Color.white.opacity(0.85) : .secondary)
+                    .help(recurrence.summary)
+            }
             Spacer(minLength: 0)
         }
         .font(.callout)
         .padding(.horizontal, 4)
         .frame(height: Self.height)
         .background(background, in: .rect(cornerRadius: 4))
-        .opacity(task.isEvent && task.hasEnded() && !isSelected ? 0.55 : 1)
+        .opacity(shown.isEvent && shown.hasEnded() && !isSelected ? 0.55 : 1)
         .contentShape(.rect)
         .onTapGesture {
             actions.select(task.id, NSEvent.modifierFlags.contains(.command))
         }
-        .modifier(DragSourceIfEnabled(task: task, actions: actions, isEnabled: isDraggable))
+        .modifier(DragSourceIfEnabled(task: shown, actions: actions, isEnabled: isDraggable))
         .contextMenu {
             if !task.isEvent {
                 Button(task.done ? "Mark as Not Done" : "Mark as Done") {

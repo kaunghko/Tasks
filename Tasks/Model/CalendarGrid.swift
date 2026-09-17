@@ -25,6 +25,14 @@ enum CalendarGrid {
         days(from: startOfWeek(containing: date, calendar: calendar), count: 7, calendar: calendar)
     }
 
+    /// From the start of the first day to the end of the last one.
+    static func interval(of days: [Date], calendar: Calendar = .current) -> DateInterval? {
+        guard let first = days.first, let last = days.last,
+              let end = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: last))
+        else { return nil }
+        return DateInterval(start: calendar.startOfDay(for: first), end: end)
+    }
+
     /// Short weekday names, starting on the calendar's first weekday.
     static func weekdaySymbols(calendar: Calendar = .current) -> [String] {
         let symbols = calendar.shortWeekdaySymbols
@@ -33,12 +41,19 @@ enum CalendarGrid {
     }
 
     /// Dated tasks keyed by the start of their due day. An event is listed on every day it overlaps.
-    /// Each day has events first by start time, then tasks in display order.
-    static func tasksByDay(_ tasks: [TaskItem], calendar: Calendar = .current) -> [Date: [TaskItem]] {
+    /// A repeating event is listed once per occurrence that overlaps `range`, as a copy moved there;
+    /// without a range only its first occurrence is. Each day has events first by start time,
+    /// then tasks in display order.
+    static func tasksByDay(_ tasks: [TaskItem], in range: DateInterval? = nil, calendar: Calendar = .current) -> [Date: [TaskItem]] {
         var result: [Date: [TaskItem]] = [:]
         for task in tasks {
-            for day in days(of: task, calendar: calendar) {
-                result[day, default: []].append(task)
+            let occurrences = range.map { task.occurrences(in: $0, calendar: calendar) } ?? [task]
+            for occurrence in occurrences {
+                for day in days(of: occurrence, calendar: calendar)
+                // Occurrences longer than the gap between them would list the item twice on a day.
+                where !(result[day]?.contains { $0.id == occurrence.id } ?? false) {
+                    result[day, default: []].append(occurrence)
+                }
             }
         }
         return result.mapValues { dayTasks in
@@ -70,7 +85,7 @@ enum CalendarGrid {
         return calendar.date(byAdding: component, value: value, to: date) ?? date
     }
 
-    private static func startOfWeek(containing date: Date, calendar: Calendar) -> Date {
+    static func startOfWeek(containing date: Date, calendar: Calendar = .current) -> Date {
         let day = calendar.startOfDay(for: date)
         let offset = (calendar.component(.weekday, from: day) - calendar.firstWeekday + 7) % 7
         return calendar.date(byAdding: .day, value: -offset, to: day) ?? day

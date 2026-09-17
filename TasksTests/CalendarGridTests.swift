@@ -122,6 +122,19 @@ struct CalendarGridTests {
         #expect(other.isEmpty)
     }
 
+    @Test func tasksByDayListsEachOccurrenceInTheRange() throws {
+        let start = day("2026-09-14").addingTimeInterval(9 * 3600)
+        let lecture = TaskItem(
+            title: "Lecture", start: start, end: start.addingTimeInterval(3600),
+            recurrence: Recurrence(frequency: .weekly, weekdays: [.mon, .wed])
+        )
+        let range = try #require(CalendarGrid.interval(of: CalendarGrid.weekDays(containing: day("2026-09-23"))))
+        let byDay = CalendarGrid.tasksByDay([lecture], in: range)
+
+        #expect(byDay.keys.sorted() == [day("2026-09-21"), day("2026-09-23")])
+        #expect(byDay[day("2026-09-23")]?.first?.start == day("2026-09-23").addingTimeInterval(9 * 3600))
+    }
+
     @Test(arguments: [(0.0, 0), (47.0, 45), (48.0, 60), (60.0, 75), (-5.0, 0), (5000.0, 1425)])
     func snappedMinuteRoundsDownToQuarterHours(y: Double, minute: Int) {
         #expect(EventLayout.snappedMinute(atY: y, hourHeight: 48) == minute)

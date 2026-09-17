@@ -24,7 +24,9 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
     }
 
     /// `today` includes overdue tasks, so nothing slips out of view, and events that haven't ended yet.
+    /// A repeating event counts as its current occurrence.
     func includes(_ task: TaskItem, now: Date = .now, calendar: Calendar = .current) -> Bool {
+        let task = task.currentOccurrence(now: now, calendar: calendar)
         let today = calendar.startOfDay(for: now)
         if let start = task.start, let end = task.end {
             switch self {
@@ -60,6 +62,7 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
     }
 
     /// Filters, searches (title and notes) and sorts tasks for display.
+    /// Repeating events come back as their current occurrence.
     func apply(
         to tasks: [TaskItem],
         search: String = "",
@@ -68,6 +71,7 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
     ) -> [TaskItem] {
         let query = search.trimmingCharacters(in: .whitespaces)
         return tasks
+            .map { $0.currentOccurrence(now: now, calendar: calendar) }
             .filter { includes($0, now: now, calendar: calendar) }
             .filter { query.isEmpty
                 || $0.title.localizedStandardContains(query)

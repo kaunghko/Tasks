@@ -80,6 +80,25 @@ struct TaskFilterTests {
         #expect(titles == ["Lunch", "Today", "Finished", "Morning"])
     }
 
+    @Test func repeatingEventShowsItsCurrentOccurrence() {
+        // Daily from Sep 10, 09:30–11:00; `now` is 10:00 on Sep 15.
+        let standup = TaskItem(
+            title: "Standup", start: at("2026-09-10", 9.5), end: at("2026-09-10", 11),
+            recurrence: Recurrence(frequency: .daily)
+        )
+        let shown = TaskFilter.today.apply(to: [standup], now: now)
+        #expect(shown.map(\.start) == [at("2026-09-15", 9.5)])
+        #expect(shown.first?.id == standup.id)
+        #expect(TaskFilter.completed.apply(to: [standup], now: now).isEmpty)
+
+        let weekly = TaskItem(
+            title: "Seminar", start: at("2026-09-08", 8), end: at("2026-09-08", 9),
+            recurrence: Recurrence(frequency: .weekly)
+        )
+        #expect(TaskFilter.home(for: weekly, now: now) == .upcoming)
+        #expect(TaskFilter.upcoming.apply(to: [weekly], now: now).map(\.start) == [at("2026-09-22", 8)])
+    }
+
     @Test func homeListForEvents() {
         #expect(TaskFilter.home(for: ongoingEvent, now: now) == .today)
         #expect(TaskFilter.home(for: overnightEvent, now: now) == .today)

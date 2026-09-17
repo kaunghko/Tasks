@@ -2,9 +2,12 @@ import SwiftUI
 
 struct TaskRow: View {
     @Binding var task: TaskItem
+    /// The occurrence to show the schedule of, when the event repeats.
+    var occurrence: TaskItem?
 
     var body: some View {
-        let isFinished = task.isFinished()
+        let shown = occurrence ?? task
+        let isFinished = shown.isFinished()
 
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             if task.isEvent {
@@ -46,15 +49,22 @@ struct TaskRow: View {
                     .help("\(progress.done) of \(progress.total) subtasks done")
             }
 
-            if let scheduleLabel = task.scheduleLabel {
+            if let recurrence = task.recurrence {
+                Image(systemName: "repeat")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help(recurrence.summary)
+            }
+
+            if let scheduleLabel = shown.scheduleLabel {
                 Text(scheduleLabel)
                     .font(.caption)
                     .monospacedDigit()
-                    .foregroundStyle(task.isOverdue() ? .red : .secondary)
+                    .foregroundStyle(shown.isOverdue() ? .red : .secondary)
             }
         }
         .padding(.vertical, 2)
-        .opacity(task.isEvent && isFinished ? 0.6 : 1)
+        .opacity(shown.isEvent && isFinished ? 0.6 : 1)
     }
 }
 

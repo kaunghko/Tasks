@@ -10,7 +10,8 @@ struct CalendarActions {
     /// What moves when an item is dragged: the item, or the whole selection when it's part of it.
     var dragGroup: (TaskItem.ID) -> Set<TaskItem.ID>
     /// Moves dragged items (with the one under the pointer as anchor) to where they were dropped.
-    var dropDragged: (Set<TaskItem.ID>, _ anchor: TaskItem.ID, CalendarDropTarget?) -> Void
+    /// The anchor is the occurrence that was dragged, for repeating events.
+    var dropDragged: (Set<TaskItem.ID>, _ anchor: TaskItem, CalendarDropTarget?) -> Void
     var toggleDone: (Set<TaskItem.ID>) -> Void
     var delete: (Set<TaskItem.ID>) -> Void
     /// Whether a task's details popover is open; setting false closes it.
@@ -32,10 +33,12 @@ struct CalendarView: View {
     @Binding var detailTaskID: TaskItem.ID?
     let onAdd: (Date?) -> Void
     let onAddEvent: (Date, Date) -> Void
-    let onReschedule: (Set<TaskItem.ID>, Date?) -> Void
+    /// Moves tasks to a day, or clears their due date when it's nil. The anchor is the dragged
+    /// occurrence, so repeating events move by as many days as it did.
+    let onReschedule: (Set<TaskItem.ID>, _ anchor: TaskItem?, Date?) -> Void
     /// Moves tasks to a time: the anchor event starts then, other events shift by as much,
     /// and tasks move to that day.
-    let onMove: (Set<TaskItem.ID>, _ anchor: TaskItem.ID, Date) -> Void
+    let onMove: (Set<TaskItem.ID>, _ anchor: TaskItem, Date) -> Void
     let onToggleDone: (Set<TaskItem.ID>) -> Void
     let onDelete: (Set<TaskItem.ID>) -> Void
     /// Whether a task's details popover is open; setting false closes it.
@@ -47,7 +50,10 @@ struct CalendarView: View {
 
     var body: some View {
         let visible = TaskFilter.all.apply(to: tasks)
-        let byDay = CalendarGrid.tasksByDay(visible)
+        let shownDays = mode == .month
+            ? CalendarGrid.monthDays(containing: visibleDate)
+            : CalendarGrid.weekDays(containing: visibleDate)
+        let byDay = CalendarGrid.tasksByDay(visible, in: CalendarGrid.interval(of: shownDays))
 
         VStack(spacing: 0) {
             header
@@ -166,11 +172,11 @@ struct CalendarView: View {
                 withAnimation(.snappy(duration: 0.25)) {
                     switch target {
                     case .day(let day):
-                        onReschedule(ids, day)
+                        onReschedule(ids, anchor, day)
                     case .time(let day, let minute):
                         onMove(ids, anchor, EventLayout.date(on: day, minute: minute))
                     case .undated:
-                        onReschedule(ids, nil)
+                        onReschedule(ids, anchor, nil)
                     }
                 }
             },

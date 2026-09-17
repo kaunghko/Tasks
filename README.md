@@ -25,6 +25,10 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
   - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
   - To search everything again, press Backspace in an empty field, press Tab again, or click ✕ on the scope token. Esc also removes a scope before it closes the palette.
 - Click a task or event to edit its title, notes, due date or times in a popover
+- Repeating tasks and events: pick Daily, Weekly, Monthly or Yearly under Repeat in the popover, with an interval (every 2 weeks), days of the week for weekly rules, and an optional end date.
+  - Checking off a repeating task moves it to its next date that isn't in the past, unchecked and with its subtasks cleared. Once the rule has ended, it stays done.
+  - A repeating event shows on every occurrence in the calendar, and once in lists, at its current or next occurrence. Edits, drags and deletes apply to the whole series: drag Wednesday's lecture to Thursday and every occurrence moves a day.
+  - Rows, chips and event blocks show a ↻ icon. Hover over it for the rule.
 - Subtasks: in a task's notes, start a line with `- [ ] ` (or `- [x] `) to turn it into a checkbox. Other lines stay plain notes.
   - Return adds the next subtask. Return or Backspace on an empty subtask deletes it and ends the list.
   - To delete any subtask, click the ✕ that shows when you hover over it or edit it, or right-click it.
@@ -65,11 +69,21 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
       "createdAt": "2026-09-15T09:00:00Z"
     },
     {
+      "id": "9D4E2A71-6B3C-4F5D-8E90-1B2C3D4E5F03",
+      "title": "Stretch",
+      "notes": "",
+      "done": false,
+      "due": "2026-09-16",
+      "repeat": { "frequency": "daily" },
+      "createdAt": "2026-09-15T09:00:00Z"
+    },
+    {
       "id": "5C2F8B14-3E6A-4D7B-8F90-1A2B3C4D5E02",
       "title": "ML lecture",
       "notes": "Room F073",
       "start": "2026-09-22T09:00:00+09:00",
       "end": "2026-09-22T10:15:00+09:00",
+      "repeat": { "frequency": "weekly", "weekdays": ["tue", "thu"], "until": "2026-12-17" },
       "createdAt": "2026-09-15T09:00:00Z"
     }
   ]
@@ -86,7 +100,16 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | `due` | `yyyy-MM-dd`, a local day | none |
 | `start` | ISO-8601 timestamp. Its presence makes the entry an event | none |
 | `end` | ISO-8601 timestamp, after `start` | one hour after `start` |
+| `repeat` | `{frequency, interval, weekdays, until}`, where only `frequency` is needed | none, and left out when there is no rule |
 | `createdAt` | ISO-8601 timestamp | time of loading |
+
+In `repeat`:
+- `frequency` is `daily`, `weekly`, `monthly` or `yearly`.
+- `interval` repeats every that many days, weeks, months or years. It defaults to 1 and is left out when 1.
+- `weekdays` is for weekly rules only: `sun`, `mon`, `tue`, `wed`, `thu`, `fri`, `sat`. Without it, a weekly rule repeats on the weekday it starts.
+- `until` is the last `yyyy-MM-dd` day an occurrence can fall on.
+
+A task's rule moves its `due` along. An event's rule counts occurrences from its `start`, which is the first one, and each occurrence keeps the event's time of day and length. A monthly rule on the 31st falls on the last day of shorter months.
 
 Events don't have `done` or `due`. The app writes their times with your local offset, such as `+09:00`, and reads any ISO-8601 offset or `Z`.
 
@@ -98,6 +121,7 @@ When you edit a file in the app and save it, a few things are not kept:
 - Unknown fields.
 - Due dates that can't be parsed.
 - Event times that can't be parsed. An entry with an unreadable `start` loads as a task.
+- A `repeat` with a missing or unknown `frequency`, unknown weekday names, or an unreadable `until`.
 
 ## Architecture
 
@@ -106,6 +130,7 @@ Tasks/
   TasksApp.swift              DocumentGroup scene
   Document/TaskDocument.swift FileDocument: reads and writes JSON
   Model/                      TaskFile, TaskItem (tolerant Codable), Subtask + Checklist (`- [ ]` parsing),
+                              Recurrence (repeat rules, occurrences),
                               TaskFilter (filter + sort),
                               CalendarGrid (month/week date math) + EventLayout (week grid placement),
                               CalendarDrop (drag target under the pointer),
@@ -119,7 +144,7 @@ Tasks/
   AppIcon.icon                Icon Composer app icon
 scripts/                      release.sh (sign, notarize, publish), ExportOptions.plist
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,
-                              event layout and moves, palette search
+                              event layout and moves, repeat rules, palette search
 ```
 
 All edits go through the document binding. That binding records undo and marks the file dirty, so there is no separate state store.

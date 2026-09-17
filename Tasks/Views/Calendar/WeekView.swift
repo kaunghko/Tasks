@@ -66,7 +66,7 @@ struct WeekView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(dayTasks[index]) { task in
-                        TaskChip(task: $tasks[id: task.id], isSelected: selection.contains(task.id), actions: actions)
+                        TaskChip(task: $tasks[id: task.id], occurrence: task, isSelected: selection.contains(task.id), actions: actions)
                     }
                 }
                 .padding(4)
@@ -186,6 +186,7 @@ private struct DayTimeline: View {
                     let height = CGFloat(placement.endMinute - placement.startMinute) / 60 * hourHeight
                     EventBlock(
                         task: $tasks[id: placement.id],
+                        occurrence: events.first { $0.id == placement.id },
                         height: height - 2,
                         isSelected: selection.contains(placement.id),
                         actions: actions
@@ -307,12 +308,15 @@ private struct NowLine: View {
 /// An event on the hourly grid: a tinted block with a colored edge, its title and time.
 private struct EventBlock: View {
     @Binding var task: TaskItem
+    /// The occurrence this block stands for, when the event repeats.
+    let occurrence: TaskItem?
     let height: CGFloat
     let isSelected: Bool
     let actions: CalendarActions
 
     var body: some View {
         let title = task.title.isEmpty ? "Untitled" : task.title
+        let shown = occurrence ?? task
 
         HStack(spacing: 0) {
             Rectangle()
@@ -323,7 +327,7 @@ private struct EventBlock: View {
                     // Too short for two lines: title and start time side by side.
                     HStack(spacing: 4) {
                         Text(title).fontWeight(.semibold)
-                        if let time = task.startTimeLabel {
+                        if let time = shown.startTimeLabel {
                             Text(time).monospacedDigit().opacity(0.75)
                         }
                     }
@@ -335,12 +339,16 @@ private struct EventBlock: View {
                         Text(title)
                             .font(.callout.weight(.semibold))
                             .lineLimit(max(Int((height - 20) / 16), 1))
-                        if let range = task.timeRangeLabel {
-                            Text(range)
-                                .font(.caption)
-                                .monospacedDigit()
-                                .opacity(0.75)
-                                .lineLimit(1)
+                        if let range = shown.timeRangeLabel {
+                            HStack(spacing: 3) {
+                                Text(range).monospacedDigit()
+                                if task.recurrence != nil {
+                                    Image(systemName: "repeat")
+                                }
+                            }
+                            .font(.caption)
+                            .opacity(0.75)
+                            .lineLimit(1)
                         }
                     }
                     .padding(.vertical, 3)
@@ -355,12 +363,12 @@ private struct EventBlock: View {
         // Opaque underneath, so hour lines don't show through the tint.
         .background(.background)
         .clipShape(.rect(cornerRadius: 5))
-        .opacity(task.hasEnded() && !isSelected ? 0.55 : 1)
+        .opacity(shown.hasEnded() && !isSelected ? 0.55 : 1)
         .contentShape(.rect)
         .onTapGesture {
             actions.select(task.id, NSEvent.modifierFlags.contains(.command))
         }
-        .calendarDragSource(task: task, actions: actions)
+        .calendarDragSource(task: shown, actions: actions)
         .contextMenu {
             Button("Delete", role: .destructive) {
                 actions.delete([task.id])
@@ -369,6 +377,6 @@ private struct EventBlock: View {
         .popover(isPresented: actions.detailsShown(task.id), arrowEdge: .trailing) {
             TaskDetailView(task: $task)
         }
-        .help([title, task.timeRangeLabel].compactMap { $0 }.joined(separator: "\n"))
+        .help([title, shown.timeRangeLabel, task.recurrence?.summary].compactMap { $0 }.joined(separator: "\n"))
     }
 }

@@ -119,13 +119,13 @@ struct ContentView: View {
         // (marking it done in Today, switching it to an event) doesn't close the popover under the cursor.
         if let id = detailTaskID, !tasks.contains(where: { $0.id == id }),
            let open = document.file.tasks.first(where: { $0.id == id }) {
-            tasks.append(open)
+            tasks.append(open.currentOccurrence())
             tasks.sort(by: TaskFilter.displayOrder)
         }
         return ScrollViewReader { proxy in
             List(selection: $selection) {
                 ForEach(tasks) { task in
-                    TaskRow(task: $document.file.tasks[id: task.id])
+                    TaskRow(task: $document.file.tasks[id: task.id], occurrence: task)
                         .contentShape(.rect)
                         // Simultaneous, so the List still handles selection and ⌘/⇧-clicks.
                         .simultaneousGesture(TapGesture().onEnded {
@@ -335,11 +335,20 @@ struct ContentView: View {
     }
 
     /// Moves tasks to a day, or clears their due date when `day` is nil.
-    /// Events keep their times, and can't lose their date.
-    private func reschedule(_ ids: Set<TaskItem.ID>, to day: Date?) {
+    /// Events keep their times, and can't lose their date. Repeating events move as a series,
+    /// by as many days as the dragged `anchor` occurrence.
+    private func reschedule(_ ids: Set<TaskItem.ID>, anchor: TaskItem?, to day: Date?) {
+        let calendar = Calendar.current
         var tasks = document.file.tasks
+        let days = day.flatMap { day in
+            anchor?.due.flatMap { calendar.dateComponents([.day], from: $0, to: calendar.startOfDay(for: day)).day }
+        }
         for index in tasks.indices where ids.contains(tasks[index].id) {
-            if let day {
+            if tasks[index].isRepeatingEvent {
+                if let days {
+                    tasks[index].moveSeries(byDays: days)
+                }
+            } else if let day {
                 tasks[index].move(toDay: day)
             } else if !tasks[index].isEvent {
                 tasks[index].due = nil
@@ -351,11 +360,14 @@ struct ContentView: View {
 
     /// A drop on the week grid: the anchor event starts at `start`, other selected events shift
     /// by the same amount, and tasks move to that day.
-    private func move(_ ids: Set<TaskItem.ID>, anchor: TaskItem.ID, to start: Date) {
+    private func move(_ ids: Set<TaskItem.ID>, anchor: TaskItem, to start: Date) {
         var tasks = document.file.tasks
-        let offset = tasks[id: anchor].start.map { start.timeIntervalSince($0) }
+        // From the dragged occurrence, so a repeating series moves by as much as that one did.
+        let offset = anchor.start.map { start.timeIntervalSince($0) }
         for index in tasks.indices where ids.contains(tasks[index].id) {
-            if let eventStart = tasks[index].start, let offset {
+            if tasks[index].isRepeatingEvent, let eventStart = tasks[index].start, let offset {
+                tasks[index].moveSeries(toStart: eventStart.addingTimeInterval(offset))
+            } else if let eventStart = tasks[index].start, let offset {
                 tasks[index].move(toStart: eventStart.addingTimeInterval(offset))
             } else {
                 // Dragged along with a task: events keep their time of day, tasks just change day.
