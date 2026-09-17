@@ -40,6 +40,8 @@ struct DetectedSchedule: Equatable {
     /// With `start`, a length such as "for 2 hours".
     var duration: TimeInterval?
     var recurrence: Recurrence?
+    /// From "remind me 10 min before", "remind me" or "no reminder".
+    var alert: TaskAlert?
 }
 
 /// Finds English dates, times and repeat rules in typed text. Suggestions only: nothing here
@@ -101,7 +103,7 @@ private struct Parser {
 
     typealias Weekday = Recurrence.Weekday
 
-    private enum Kind { case day, time, duration, recurrence, until }
+    private enum Kind { case day, time, duration, recurrence, until, alert }
 
     // MARK: - Running
 
@@ -112,12 +114,18 @@ private struct Parser {
         var duration: TimeInterval?
         var recurrence: Recurrence?
         var until: Date?
+        var alert: TaskAlert?
         var tonight = false
         var spans: [(range: Range<Int>, kind: Kind)] = []
 
         var i = 0
         while i < tokens.count {
-            if recurrence == nil, let match = repeatRule(at: i) {
+            // Alerts go first, so "10" in "remind me 10 min before" isn't a time.
+            if alert == nil, let match = alertExpression(at: i) {
+                alert = match.alert
+                spans.append((i..<match.end, .alert))
+                i = match.end
+            } else if recurrence == nil, let match = repeatRule(at: i) {
                 recurrence = match.rule
                 if day == nil { day = match.day }
                 spans.append((i..<match.end, .recurrence))
@@ -167,7 +175,8 @@ private struct Parser {
         guard !title.isEmpty else { return nil }
         return DetectedSchedule(
             phrase: phrase(of: ranges), title: title, day: day,
-            start: start, end: start == nil ? nil : end, duration: duration, recurrence: recurrence
+            start: start, end: start == nil ? nil : end, duration: duration, recurrence: recurrence,
+            alert: alert
         )
     }
 
@@ -478,6 +487,75 @@ private struct Parser {
         }
         guard start.isExplicit || prefixed else { return nil }
         return (afterStart, start.resolved, nil)
+    }
+
+    // MARK: - Alerts
+
+    /// "remind me 10 min before", "notify 1h before", "alert me the day before", "remind me",
+    /// "no reminder", "don't remind me". Only offsets before the time; "after" isn't matched.
+    private func alertExpression(at i: Int) -> (end: Int, alert: TaskAlert)? {
+        if word(i) == "no", isWord(i + 1, ["reminder", "reminders", "alert", "alerts", "notification", "notifications"]) {
+            return (i + 2, .none)
+        }
+        if isWord(i, ["don", "dont"]) {
+            var j = i + 1
+            if isWord(j, ["'", "’"]), word(j + 1) == "t" { j += 2 }
+            guard word(j) == "remind" else { return nil }
+            j += 1
+            if word(j) == "me" { j += 1 }
+            return (j, .none)
+        }
+
+        guard let keyword = word(i), ["remind", "alert", "notify"].contains(keyword) else { return nil }
+        var j = i + 1
+        if word(j) == "me" { j += 1 }
+        if let offset = alertOffset(at: j) {
+            return (offset.end, offset.minutes > 0 ? .minutesBefore(offset.minutes) : .atTime)
+        }
+
+        // "alert" and "notify" alone are too often just words in a title ("fix alert bug").
+        // "Remind me to call mom" is a title, and "remind me 10 min after" isn't supported.
+        guard keyword == "remind",
+              !isWord(j, ["to", "about", "that", "of", "a", "an", "the"]), number(j) == nil
+        else { return nil }
+        if word(j) == "at", word(j + 1) == "the", word(j + 2) == "time" {
+            j += 3
+        } else if word(j) == "on", word(j + 1) == "time" {
+            j += 2
+        }
+        return (j, .atTime)
+    }
+
+    /// "10 min before", "an hour before", "1 hour and 30 min before", "2 days early", "the day before".
+    private func alertOffset(at i: Int) -> (end: Int, minutes: Int)? {
+        if word(i) == "the", word(i + 1) == "day", word(i + 2) == "before" {
+            return (i + 3, 24 * 60)
+        }
+        var j = i
+        var total = 0
+        while true {
+            let amount: Int
+            if let value = number(j) {
+                amount = value
+            } else if total == 0, isWord(j, ["a", "an"]) {
+                amount = 1
+            } else {
+                break
+            }
+            let unit: Int? = switch word(j + 1) {
+            case "m", "min", "mins", "minute", "minutes": 1
+            case "h", "hr", "hrs", "hour", "hours": 60
+            case "d", "day", "days": 24 * 60
+            case "w", "wk", "wks", "week", "weeks": 7 * 24 * 60
+            default: nil
+            }
+            guard let unit else { return nil }
+            total += amount * unit
+            j += 2
+            if word(j) == "and", number(j + 1) != nil || isWord(j + 1, ["a", "an"]) { j += 1 }
+        }
+        guard j > i, isWord(j, ["before", "early"]) else { return nil }
+        return (j + 1, total)
     }
 
     /// "for 2 hours", "for 30 min", "for 1h30m", "for an hour", "for half an hour", "for 1.5 hours".

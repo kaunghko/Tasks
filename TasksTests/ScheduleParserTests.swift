@@ -264,3 +264,57 @@ struct ScheduleParserTests {
         #expect(event.recurrence == Recurrence(frequency: .weekly, weekdays: [.mon, .wed]))
     }
 }
+
+struct AlertParsingTests {
+    @Test(arguments: [
+        ("Standup remind me 10 min before", "Standup", TaskAlert.minutesBefore(10)),
+        ("Standup remind 10min before", "Standup", .minutesBefore(10)),
+        ("Call notify 1h before", "Call", .minutesBefore(60)),
+        ("Call notify me an hour before", "Call", .minutesBefore(60)),
+        ("Gym alert 1 hour and 30 min before", "Gym", .minutesBefore(90)),
+        ("Trip remind me the day before", "Trip", .minutesBefore(1440)),
+        ("Trip remind me 2 days early", "Trip", .minutesBefore(2880)),
+        ("Pay rent remind me", "Pay rent", .atTime),
+        ("Pay rent, remind me at the time", "Pay rent", .atTime),
+        ("Lecture no reminder", "Lecture", TaskAlert.none),
+        ("Lecture don't remind me", "Lecture", TaskAlert.none),
+        ("Lecture dont remind me", "Lecture", TaskAlert.none),
+    ])
+    func findsAlerts(text: String, title: String, alert: TaskAlert) throws {
+        let detected = try #require(parse(text))
+        #expect(detected.title == title)
+        #expect(detected.alert == alert)
+    }
+
+    @Test func alertCombinesWithDayAndTime() throws {
+        let detected = try #require(parse("Exam tomorrow 9am remind me a day before"))
+        #expect(detected.title == "Exam")
+        #expect(detected.day == day("2026-09-18"))
+        #expect(detected.start == TimeOfDay(hour: 9))
+        #expect(detected.alert == .minutesBefore(1440))
+    }
+
+    @Test(arguments: [
+        "Remind me to call mom",
+        "Fix alert bug",
+        "Lunch remind me 10 min after",
+        "Standup 10 min before",
+        "Notify the team",
+    ])
+    func ignoresOtherUses(text: String) {
+        #expect(parse(text)?.alert == nil)
+    }
+
+    @Test func applyingSetsOnlyTheAlert() throws {
+        var task = TaskItem(title: "Standup remind me 15 min before", due: day("2026-09-18"), dueTime: TimeOfDay(hour: 9))
+        task.apply(try #require(parse(task.title)), now: now, calendar: calendar)
+        #expect(task.title == "Standup")
+        #expect(task.alert == .minutesBefore(15))
+        #expect(task.due == day("2026-09-18"))
+        #expect(task.dueTime == TimeOfDay(hour: 9))
+
+        task.title = "Standup tomorrow"
+        task.apply(try #require(parse(task.title)), now: now, calendar: calendar)
+        #expect(task.alert == .minutesBefore(15))
+    }
+}

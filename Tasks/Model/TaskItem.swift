@@ -538,6 +538,9 @@ extension TaskItem {
             }
             recurrence = rule
         }
+        if let alert = detected.alert {
+            self.alert = alert
+        }
     }
 }
 

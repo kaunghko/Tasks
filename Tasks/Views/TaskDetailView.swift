@@ -197,6 +197,15 @@ private struct DetectedScheduleRow: View {
                     Text(rule.summary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if let alert = detected.alert {
+                    HStack(spacing: 4) {
+                        Text("Alert: \(alert.title)")
+                        if alert != .none, !preview.isEvent, preview.dueTime == nil {
+                            Text("(needs a time)")
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
             }
         }
     }
@@ -204,6 +213,7 @@ private struct DetectedScheduleRow: View {
     private var symbol: String {
         if detected.start != nil { return "clock" }
         if detected.day != nil { return "calendar" }
+        if detected.recurrence == nil, detected.alert != nil { return "bell" }
         return "arrow.clockwise"
     }
 
