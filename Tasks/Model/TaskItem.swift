@@ -40,6 +40,8 @@ struct TaskItem: Codable, Identifiable, Hashable {
     /// For a task, the rule its due date moves along when checked off. For an event, the rule its
     /// occurrences follow, counted from `start`; the calendar shows every occurrence.
     var recurrence: Recurrence?
+    /// When a timed task or an event notifies. Tasks without a due time never do.
+    var alert: TaskAlert
     var createdAt: Date
 
     init(
@@ -53,6 +55,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         start: Date? = nil,
         end: Date? = nil,
         recurrence: Recurrence? = nil,
+        alert: TaskAlert = .atTime,
         createdAt: Date = .now
     ) {
         self.id = id
@@ -75,13 +78,14 @@ struct TaskItem: Codable, Identifiable, Hashable {
             self.dueTime = due == nil ? nil : dueTime
         }
         self.recurrence = recurrence
+        self.alert = alert
         self.createdAt = TaskDates.wholeSeconds(createdAt)
     }
 
     static let defaultEventDuration: TimeInterval = 3600
 
     private enum CodingKeys: String, CodingKey {
-        case id, title, notes, subtasks, done, due, start, end, recurrence = "repeat", createdAt
+        case id, title, notes, subtasks, done, due, start, end, recurrence = "repeat", alert, createdAt
     }
 
     /// Tolerant decoding: only `title` is really expected, everything else has a default,
@@ -109,6 +113,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
             end: date(.end),
             // A rule that can't be read is dropped rather than failing the whole file.
             recurrence: (try? container.decodeIfPresent(Recurrence.self, forKey: .recurrence)) ?? nil,
+            alert: (try? container.decodeIfPresent(TaskAlert.self, forKey: .alert)) ?? .atTime,
             createdAt: date(.createdAt) ?? .now
         )
     }
@@ -135,6 +140,10 @@ struct TaskItem: Codable, Identifiable, Hashable {
             }
         }
         try container.encodeIfPresent(recurrence, forKey: .recurrence)
+        // Left out at the default, so files without alerts save unchanged.
+        if alert != .atTime {
+            try container.encode(alert, forKey: .alert)
+        }
         try container.encode(TaskDates.timestampString(createdAt), forKey: .createdAt)
     }
 

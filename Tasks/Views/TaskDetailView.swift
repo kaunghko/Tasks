@@ -51,6 +51,17 @@ struct TaskDetailView: View {
                         }
                     }
                 }
+                if task.isEvent || task.hasDueTime {
+                    Picker("Alert", selection: $task.alert) {
+                        ForEach(TaskAlert.presets, id: \.self) { alert in
+                            Text(alert.title).tag(alert)
+                        }
+                        // A custom value written by hand still shows.
+                        if !TaskAlert.presets.contains(task.alert) {
+                            Text(task.alert.title).tag(task.alert)
+                        }
+                    }
+                }
             }
 
             Section {

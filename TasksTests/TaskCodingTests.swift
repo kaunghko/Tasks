@@ -200,3 +200,32 @@ struct TaskCodingTests {
         #expect(try String(decoding: TaskFile.decode(Data(json.utf8)).encoded(), as: UTF8.self) == json)
     }
 }
+
+struct TaskAlertCodingTests {
+    private func encodedTask(_ alert: TaskAlert) throws -> [String: Any] {
+        let file = TaskFile(tasks: [TaskItem(title: "a", start: TaskDates.parse("2026-09-22T09:00:00Z"), alert: alert)])
+        let json = try JSONSerialization.jsonObject(with: file.encoded()) as? [String: Any]
+        return try #require((json?["tasks"] as? [[String: Any]])?.first)
+    }
+
+    @Test func defaultAlertIsLeftOut() throws {
+        #expect(try encodedTask(.atTime)["alert"] == nil)
+    }
+
+    @Test func alertIsWrittenAsMinutesOrNone() throws {
+        #expect(try encodedTask(.minutesBefore(10))["alert"] as? Int == 10)
+        #expect(try encodedTask(.none)["alert"] as? String == "none")
+    }
+
+    @Test(arguments: [TaskAlert.atTime, .minutesBefore(10), .minutesBefore(1440), .none])
+    func alertRoundTrips(alert: TaskAlert) throws {
+        let original = TaskFile(tasks: [TaskItem(title: "a", start: TaskDates.parse("2026-09-22T09:00:00Z"), alert: alert)])
+        #expect(try TaskFile.decode(original.encoded()).tasks.first?.alert == alert)
+    }
+
+    @Test(arguments: [#""soon""#, "true", "0", "-5"])
+    func unreadableAlertLoadsAsAtTime(value: String) throws {
+        let file = try TaskFile.decode(Data(#"{"tasks":[{"title":"a","alert":\#(value)}]}"#.utf8))
+        #expect(file.tasks.first?.alert == .atTime)
+    }
+}

@@ -35,6 +35,9 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
   - Checking off a repeating task moves it to its next date that isn't in the past, unchecked and with its subtasks cleared. Once the rule has ended, it stays done.
   - A repeating event shows on every occurrence in the calendar, and once in lists, at its current or next occurrence. Edits, drags and deletes apply to the whole series: drag Wednesday's lecture to Thursday and every occurrence moves a day.
   - Rows, chips and event blocks show a ↻ icon. Hover over it for the rule.
+- Notifications for events and timed tasks, at their time by default. Pick an earlier time or None under Alert in the popover. Tasks with only a due date don't notify.
+  - macOS delivers them even when the app is closed. The app schedules the next two weeks, up to 60 notifications, whenever a file opens or changes, so a repeating event keeps notifying as long as you open its file now and then.
+  - The first time something needs a notification, macOS asks for permission. Change it later in System Settings ▸ Notifications.
 - Subtasks: in a task's notes, start a line with `- [ ] ` (or `- [x] `) to turn it into a checkbox. Other lines stay plain notes.
   - Return adds the next subtask. Return or Backspace on an empty subtask deletes it and ends the list.
   - To delete any subtask, click the ✕ that shows when you hover over it or edit it, or right-click it.
@@ -108,6 +111,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | `start` | ISO-8601 timestamp. Its presence makes the entry an event | none |
 | `end` | ISO-8601 timestamp, after `start` | one hour after `start` |
 | `repeat` | `{frequency, interval, weekdays, until}`, where only `frequency` is needed | none, and left out when there is no rule |
+| `alert` | minutes before the time, such as `10`, or `"none"`. For events and tasks with a due time | at the time, and left out then |
 | `createdAt` | ISO-8601 timestamp | time of loading |
 
 In `repeat`:
@@ -130,6 +134,7 @@ When you edit a file in the app and save it, a few things are not kept:
 - Unknown fields.
 - Due dates that can't be parsed.
 - Event times that can't be parsed. An entry with an unreadable `start` loads as a task.
+- An `alert` that isn't a positive number or `"none"`. It loads as at the time.
 - A `repeat` with a missing or unknown `frequency`, unknown weekday names, or an unreadable `until`.
 
 ## Architecture
@@ -144,7 +149,9 @@ Tasks/
                               CalendarGrid (month/week date math) + EventLayout (week grid placement of events and timed tasks),
                               CalendarDrop (drag target under the pointer),
                               SearchPalette (query parsing + result ranking),
-                              ScheduleParser (dates, times and repeat rules typed into titles)
+                              ScheduleParser (dates, times and repeat rules typed into titles),
+                              TaskAlert + Reminders (which notifications to schedule)
+  Notifications/              NotificationScheduler (syncs pending notifications per document)
   Views/                      ContentView (split view), TaskRow, TaskDetailView (popover),
                               NotesEditor (subtask checklist + notes), WindowKeyMonitor
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray,
@@ -154,7 +161,7 @@ Tasks/
   AppIcon.icon                Icon Composer app icon
 scripts/                      release.sh (sign, notarize, publish), ExportOptions.plist
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,
-                              event layout and moves, repeat rules, palette search, title parsing
+                              event layout and moves, repeat rules, palette search, title parsing, reminders
 ```
 
 All edits go through the document binding. That binding records undo and marks the file dirty, so there is no separate state store.

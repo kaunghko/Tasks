@@ -7,9 +7,13 @@ struct TasksApp: App {
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
 
+    init() {
+        NotificationScheduler.shared.start()
+    }
+
     var body: some Scene {
         DocumentGroup(newDocument: TaskDocument()) { file in
-            ContentView(document: file.$document)
+            ContentView(document: file.$document, fileURL: file.fileURL)
         }
         .defaultSize(width: 960, height: 620)
         .commands {

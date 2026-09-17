@@ -3,6 +3,8 @@ import SwiftUI
 
 struct ContentView: View {
     @Binding var document: TaskDocument
+    /// Where the document is saved, which keeps its notifications apart from other documents'.
+    var fileURL: URL?
 
     @State private var destination: AppDestination? = .filter(.all)
     @State private var selection: Set<TaskItem.ID> = []
@@ -17,6 +19,10 @@ struct ContentView: View {
     @SceneStorage("calendarMode") private var calendarMode: CalendarMode = .month
     /// A task the list should scroll to and then open details for.
     @State private var revealID: TaskItem.ID?
+    /// Stands in for `fileURL` until an untitled document is saved.
+    @State private var untitledKey = UUID().uuidString
+    /// The key the notifications were last scheduled under, so a rename or first save drops the old ones.
+    @State private var scheduledKey: String?
 
     private var currentFilter: TaskFilter {
         switch destination {
@@ -78,6 +84,9 @@ struct ContentView: View {
                 }
         }
         .environment(\.willSwitchKind, willSwitchKind)
+        .task(id: NotificationInput(tasks: document.file.tasks, key: notificationKey)) {
+            await scheduleNotifications()
+        }
         .overlay {
             if isPaletteShown {
                 SearchPaletteView(
@@ -182,6 +191,26 @@ struct ContentView: View {
                     description: Text("Press ⇧⌘N to add a task.")
                 )
             }
+        }
+    }
+
+    private var notificationKey: String {
+        fileURL?.path ?? untitledKey
+    }
+
+    /// Schedules notifications a moment after the tasks stop changing, then again every hour
+    /// so repeating events keep getting scheduled while the document stays open.
+    private func scheduleNotifications() async {
+        try? await Task.sleep(for: .seconds(1))
+        let key = notificationKey
+        while !Task.isCancelled {
+            if let old = scheduledKey, old != key {
+                await NotificationScheduler.shared.update(documentKey: old, reminders: [])
+            }
+            scheduledKey = key
+            await NotificationScheduler.shared.update(
+                documentKey: key, reminders: Reminders.reminders(for: document.file.tasks))
+            try? await Task.sleep(for: .seconds(3600))
         }
     }
 
@@ -377,4 +406,10 @@ struct ContentView: View {
         guard tasks != document.file.tasks else { return }
         document.file.tasks = tasks
     }
+}
+
+/// What notifications depend on; a change reschedules them.
+private struct NotificationInput: Equatable {
+    var tasks: [TaskItem]
+    var key: String
 }
