@@ -4,6 +4,10 @@ import SwiftUI
 struct TaskDetailView: View {
     @Binding var task: TaskItem
     @Environment(\.willSwitchKind) private var willSwitchKind
+    /// Detected phrases the user dismissed while this popover is open.
+    @State private var dismissedPhrases: Set<String> = []
+    @State private var keyMonitor = WindowKeyMonitor()
+    @FocusState private var isTitleFocused: Bool
 
     var body: some View {
         Form {
@@ -17,6 +21,15 @@ struct TaskDetailView: View {
                 .frame(maxWidth: .infinity)
 
                 TextField("Title", text: $task.title, axis: .vertical)
+                    .focused($isTitleFocused)
+                if let detected {
+                    DetectedScheduleRow(
+                        detected: detected,
+                        preview: applying(detected),
+                        onApply: { apply(detected) },
+                        onDismiss: { dismissedPhrases.insert(detected.phrase) }
+                    )
+                }
                 if !task.isEvent {
                     Toggle("Completed", isOn: $task.done)
                 }
@@ -32,6 +45,10 @@ struct TaskDetailView: View {
                     Toggle("Due Date", isOn: $task.hasDueDate)
                     if task.hasDueDate {
                         DatePicker("Date", selection: $task.dueDay, displayedComponents: .date)
+                        Toggle("Time", isOn: $task.hasDueTime)
+                        if task.hasDueTime {
+                            DatePicker("Due At", selection: $task.dueTimeDate, displayedComponents: .hourAndMinute)
+                        }
                     }
                 }
             }
@@ -68,6 +85,39 @@ struct TaskDetailView: View {
         }
         .formStyle(.grouped)
         .frame(width: 300, height: 460)
+        .background(WindowKeyMonitor.Anchor(monitor: keyMonitor))
+        .onAppear { keyMonitor.start(handler: handleKey(_:modifiers:)) }
+        .onDisappear { keyMonitor.stop() }
+    }
+
+    /// What the title suggests, unless dismissed.
+    private var detected: DetectedSchedule? {
+        guard let detected = ScheduleParser.parse(task.title),
+              !dismissedPhrases.contains(detected.phrase)
+        else { return nil }
+        return detected
+    }
+
+    /// Tab in the title field applies the suggestion. The field editor takes Tab to move focus
+    /// before `.onKeyPress` sees it, so this goes through the window's key monitor.
+    private func handleKey(_ keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+        guard keyCode == 48, isTitleFocused,
+              modifiers.intersection([.shift, .command, .option, .control]).isEmpty,
+              let detected
+        else { return false }
+        apply(detected)
+        return true
+    }
+
+    private func applying(_ detected: DetectedSchedule) -> TaskItem {
+        var item = task
+        item.apply(detected)
+        return item
+    }
+
+    /// One assignment, so it's a single undo step. The kind stays as it is.
+    private func apply(_ detected: DetectedSchedule) {
+        task = applying(detected)
     }
 
     /// Switches kinds in one assignment, so it's a single undo step. Switching back restores
@@ -93,6 +143,64 @@ struct TaskDetailView: View {
                 task = item
             }
         )
+    }
+}
+
+/// What was found in the title and what applying it would set, with Apply (Tab or ⌘↩) and dismiss buttons.
+private struct DetectedScheduleRow: View {
+    let detected: DetectedSchedule
+    let preview: TaskItem
+    let onApply: () -> Void
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: symbol)
+                .foregroundStyle(.tint)
+                .frame(width: 16)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text("“\(detected.phrase)”")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer(minLength: 4)
+                    Button("Apply", action: onApply)
+                        .controlSize(.small)
+                        .keyboardShortcut(.return, modifiers: .command)
+                        .help("Apply (Tab or ⌘↩)")
+                    Button(action: onDismiss) {
+                        Image(systemName: "xmark")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
+                    .help("Ignore")
+                    .accessibilityLabel("Ignore")
+                }
+                if let schedule {
+                    Text(schedule)
+                }
+                if let rule = preview.recurrence, detected.recurrence != nil {
+                    Text(rule.summary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private var symbol: String {
+        if detected.start != nil { return "clock" }
+        if detected.day != nil { return "calendar" }
+        return "arrow.clockwise"
+    }
+
+    /// "Tomorrow · 15:00–16:00", or just the day.
+    private var schedule: String? {
+        let time = detected.start == nil ? nil : preview.timeRangeLabel ?? preview.dueTimeLabel
+        let parts = [preview.dueLabel, time].compactMap(\.self)
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 

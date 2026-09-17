@@ -16,12 +16,22 @@ struct TaskItem: Codable, Identifiable, Hashable {
     }
     /// Start of the local day the task is due. Stored in JSON as `yyyy-MM-dd`.
     /// For an event, the day it starts, kept in step with `start` and not written to JSON.
-    var due: Date?
+    var due: Date? {
+        didSet {
+            if due == nil {
+                dueTime = nil
+            }
+        }
+    }
+    /// A task's optional time of day on its due day. With it, `due` is written as a local timestamp
+    /// such as `2026-09-22T08:00:00+09:00`. Always nil for events and tasks without a due day.
+    var dueTime: TimeOfDay?
     /// Set only for events, and always together with `end`. Events are never done.
     var start: Date? {
         didSet {
             if let start {
                 due = Calendar.current.startOfDay(for: start)
+                dueTime = nil
                 done = false
             }
         }
@@ -39,6 +49,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
         subtasks: [Subtask] = [],
         done: Bool = false,
         due: Date? = nil,
+        dueTime: TimeOfDay? = nil,
         start: Date? = nil,
         end: Date? = nil,
         recurrence: Recurrence? = nil,
@@ -61,6 +72,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
             self.end = nil
             self.done = done
             self.due = due.map { Calendar.current.startOfDay(for: $0) }
+            self.dueTime = due == nil ? nil : dueTime
         }
         self.recurrence = recurrence
         self.createdAt = TaskDates.wholeSeconds(createdAt)
@@ -81,6 +93,10 @@ struct TaskItem: Codable, Identifiable, Hashable {
         func date(_ key: CodingKeys) -> Date? {
             (try? container.decodeIfPresent(String.self, forKey: key)).flatMap(TaskDates.parse)
         }
+        // A `due` with a time, such as `2026-09-22T08:00:00+09:00`, keeps its local time of day.
+        let dueTime = (try? container.decodeIfPresent(String.self, forKey: .due))
+            .flatMap { TaskDates.hasTime($0) ? TaskDates.parse($0) : nil }
+            .map { TimeOfDay(of: $0) }
         self.init(
             id: (try? container.decodeIfPresent(UUID.self, forKey: .id)) ?? UUID(),
             title: try container.decodeIfPresent(String.self, forKey: .title) ?? "",
@@ -88,6 +104,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
             subtasks: (try container.decodeIfPresent([Subtask].self, forKey: .subtasks) ?? []) + checklist.subtasks,
             done: try container.decodeIfPresent(Bool.self, forKey: .done) ?? false,
             due: date(.due),
+            dueTime: dueTime,
             start: date(.start),
             end: date(.end),
             // A rule that can't be read is dropped rather than failing the whole file.
@@ -111,7 +128,11 @@ struct TaskItem: Codable, Identifiable, Hashable {
             try container.encodeIfPresent(end.map(TaskDates.localTimestampString), forKey: .end)
         } else {
             try container.encode(done, forKey: .done)
-            try container.encodeIfPresent(due.map(TaskDates.dayString), forKey: .due)
+            if let due, let dueTime, let timed = dueTime.on(due) {
+                try container.encode(TaskDates.localTimestampString(timed), forKey: .due)
+            } else {
+                try container.encodeIfPresent(due.map(TaskDates.dayString), forKey: .due)
+            }
         }
         try container.encodeIfPresent(recurrence, forKey: .recurrence)
         try container.encode(TaskDates.timestampString(createdAt), forKey: .createdAt)
@@ -148,6 +169,17 @@ struct TaskItem: Codable, Identifiable, Hashable {
         start?.formatted(.dateTime.hour().minute())
     }
 
+    /// A task's due time, such as "08:00".
+    var dueTimeLabel: String? {
+        guard let due, let date = dueTime?.on(due) else { return nil }
+        return date.formatted(.dateTime.hour().minute())
+    }
+
+    /// When an event starts or a timed task is due, for ordering items within a day.
+    var scheduledTime: Date? {
+        start ?? due.flatMap { dueTime?.on($0) }
+    }
+
     /// "09:00–10:15", or "22:00–Sep 18, 01:00" when the event runs past its first day.
     var timeRangeLabel: String? {
         guard let start, let end else { return nil }
@@ -161,7 +193,7 @@ struct TaskItem: Codable, Identifiable, Hashable {
     /// The day and time for lists: "09:00–10:15" today, "Tomorrow · 09:00–10:15" otherwise.
     /// Tasks just show their due day.
     var scheduleLabel: String? {
-        guard let range = timeRangeLabel else { return dueLabel }
+        guard let range = timeRangeLabel ?? dueTimeLabel else { return dueLabel }
         guard let due, !Calendar.current.isDateInToday(due), let dueLabel else { return range }
         return "\(dueLabel) · \(range)"
     }
@@ -190,6 +222,29 @@ extension TaskItem {
         set { due = Calendar.current.startOfDay(for: newValue) }
     }
 
+    /// Turning a time on starts at the next whole hour.
+    var hasDueTime: Bool {
+        get { dueTime != nil }
+        set {
+            guard newValue else {
+                dueTime = nil
+                return
+            }
+            guard dueTime == nil else { return }
+            if due == nil {
+                due = Calendar.current.startOfDay(for: .now)
+            }
+            let hour = Calendar.current.component(.hour, from: TaskItem.defaultEventStart(on: due ?? .now))
+            dueTime = TimeOfDay(hour: hour)
+        }
+    }
+
+    /// The due time as a date on the due day, for a time picker.
+    var dueTimeDate: Date {
+        get { due.flatMap { dueTime?.on($0) } ?? dueDay }
+        set { dueTime = TimeOfDay(of: newValue) }
+    }
+
     /// Switches between task and event with the defaults of `makeEvent()` and `makeTask()`.
     var isEventKind: Bool {
         get { isEvent }
@@ -207,6 +262,9 @@ extension TaskItem {
         if let previous, previous.end > previous.start {
             start = previous.start
             end = previous.end
+        } else if let timed = dueTime?.on(day, calendar: calendar) {
+            start = timed
+            end = start.addingTimeInterval(TaskItem.defaultEventDuration)
         } else {
             start = TaskItem.defaultEventStart(on: day, now: now, calendar: calendar)
             end = start.addingTimeInterval(TaskItem.defaultEventDuration)
@@ -386,15 +444,19 @@ extension TaskItem {
         }
         set {
             guard !newValue.isEmpty, recurrence != nil else { return }
-            let calendar = Calendar.current
-            let anchorDay = calendar.startOfDay(for: recurrenceAnchor)
-            let current = Recurrence.Weekday(of: anchorDay, calendar: calendar)
-            if !newValue.contains(current),
-               let days = (1..<7).first(where: { newValue.contains(current.adding(days: $0)) }),
-               let day = calendar.date(byAdding: .day, value: days, to: anchorDay) {
-                move(toDay: day, calendar: calendar)
-            }
+            moveToFirstDay(in: newValue)
             recurrence?.weekdays = newValue
+        }
+    }
+
+    /// Moves the item forward to the nearest of `weekdays`, unless it's already on one.
+    private mutating func moveToFirstDay(in weekdays: Set<Recurrence.Weekday>, calendar: Calendar = .current) {
+        let anchorDay = calendar.startOfDay(for: recurrenceAnchor)
+        let current = Recurrence.Weekday(of: anchorDay, calendar: calendar)
+        if !weekdays.isEmpty, !weekdays.contains(current),
+           let days = (1..<7).first(where: { weekdays.contains(current.adding(days: $0)) }),
+           let day = calendar.date(byAdding: .day, value: days, to: anchorDay) {
+            move(toDay: day, calendar: calendar)
         }
     }
 
@@ -411,6 +473,52 @@ extension TaskItem {
     var repeatUntil: Date {
         get { recurrence?.until ?? Calendar.current.startOfDay(for: recurrenceAnchor) }
         set { recurrence?.until = Calendar.current.startOfDay(for: newValue) }
+    }
+}
+
+// MARK: - Natural language
+
+extension TaskItem {
+    /// Applies what `ScheduleParser` found in the title, as one change. It never switches kinds:
+    /// a time moves an event, or becomes a task's due time (due today if it had no day). A day alone
+    /// reschedules the item, keeping its time, and a weekly rule on chosen days moves it to the nearest of them.
+    mutating func apply(_ detected: DetectedSchedule, now: Date = .now, calendar: Calendar = .current) {
+        title = detected.title
+        let today = calendar.startOfDay(for: now)
+
+        if let time = detected.start, let start {
+            let day = detected.day ?? calendar.startOfDay(for: start)
+            guard let newStart = calendar.date(bySettingHour: time.hour, minute: time.minute, second: 0, of: day) else {
+                return
+            }
+            let newEnd: Date
+            if let endTime = detected.end,
+               let sameDay = calendar.date(bySettingHour: endTime.hour, minute: endTime.minute, second: 0, of: day) {
+                newEnd = sameDay > newStart ? sameDay : calendar.date(byAdding: .day, value: 1, to: sameDay) ?? sameDay
+            } else if let duration = detected.duration {
+                newEnd = newStart.addingTimeInterval(duration)
+            } else if let end {
+                newEnd = newStart.addingTimeInterval(end.timeIntervalSince(start))
+            } else {
+                newEnd = newStart.addingTimeInterval(TaskItem.defaultEventDuration)
+            }
+            self.start = TaskDates.wholeSeconds(newStart)
+            end = TaskDates.wholeSeconds(newEnd)
+        } else if let time = detected.start {
+            due = detected.day ?? due ?? today
+            dueTime = time
+        } else if let day = detected.day {
+            move(toDay: day, calendar: calendar)
+        } else if detected.recurrence != nil, !isEvent, due == nil {
+            due = today
+        }
+
+        if let rule = detected.recurrence {
+            if rule.frequency == .weekly {
+                moveToFirstDay(in: rule.weekdays, calendar: calendar)
+            }
+            recurrence = rule
+        }
     }
 }
 
@@ -439,6 +547,11 @@ enum TaskDates {
             return date
         }
         return dayFormatter().date(from: trimmed)
+    }
+
+    /// Whether a date string has a time part, like `2026-09-22T08:00:00+09:00`, rather than a plain day.
+    static func hasTime(_ string: String) -> Bool {
+        string.contains("T")
     }
 
     static func dayString(_ date: Date) -> String {

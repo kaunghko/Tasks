@@ -216,7 +216,7 @@ struct SearchPaletteView: View {
         case .view(let view): view.subtitle
         case .task(let task):
             // The list the task lives in, then its date: "Upcoming · Sep 20", or "Today · 09:00" for an event.
-            [TaskFilter.home(for: task).title, task.due?.formatted(.dateTime.month(.abbreviated).day()), task.startTimeLabel]
+            [TaskFilter.home(for: task).title, task.due?.formatted(.dateTime.month(.abbreviated).day()), task.startTimeLabel ?? task.dueTimeLabel]
                 .compactMap { $0 }
                 .joined(separator: " · ")
         }

@@ -25,6 +25,12 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
   - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
   - To search everything again, press Backspace in an empty field, press Tab again, or click ✕ on the scope token. Esc also removes a scope before it closes the palette.
 - Click a task or event to edit its title, notes, due date or times in a popover
+- Tasks can have a due time as well as a due date (Time under Due Date in the popover). Rows and calendar chips show it, such as `Tomorrow · 08:00`, and timed tasks sort by time within a day. Switching a timed task to an event starts the event at that time.
+- Type a date, time or repeat rule into the title and the popover picks it up (English only):
+  - It understands days (`today`, `tonight`, `tomorrow`, `friday`, `next fri`, `in 3 days`, `next week`, `sep 22`, `9/22`, `2026-09-22`), times (`3pm`, `15:30`, `noon`, `at 3`, `by 5pm`, `3-4pm`, `from 9 to 10:15`, `for 2 hours`) and repeat rules (`daily`, `every other week`, `every weekday`, `every mon wed`, `on sundays`, `every month on the 1st`, `every sep 22`, `until dec 17`).
+  - A row under the title shows what it found, such as "tomorrow → Tomorrow". Nothing changes until you press Tab in the title, press ⌘↩ or click Apply. Then the phrase leaves the title. Undo reverts the whole change in one step. Click ✕ to ignore the suggestion.
+  - Applying never switches between task and event. In a task, a time becomes its due time: "a new task tomorrow 8 am" becomes "a new task", due tomorrow at 08:00. A time with no day means today. In an event, a time sets its start, and a range such as "3-4pm" or a length such as "for 2 hours" sets its end.
+  - Weekday abbreviations like `sat` only count after `on`, `every`, `next`, `this`, `by` or `due`, so "sat exam prep" stays a plain title. A time without am/pm from 1 to 6 means the afternoon.
 - Repeating tasks and events: pick Daily, Weekly, Monthly or Yearly under Repeat in the popover, with an interval (every 2 weeks), days of the week for weekly rules, and an optional end date.
   - Checking off a repeating task moves it to its next date that isn't in the past, unchecked and with its subtasks cleared. Once the rule has ended, it stays done.
   - A repeating event shows on every occurrence in the calendar, and once in lists, at its current or next occurrence. Edits, drags and deletes apply to the whole series: drag Wednesday's lecture to Thursday and every occurrence moves a day.
@@ -41,6 +47,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | ⇧⌘N | New task |
 | ⌥⌘N | New event |
 | ⌘K | Search palette |
+| Tab or ⌘↩ | Apply the date or rule found in a title (popover) |
 | Tab / @ | Search tasks / views (in the palette) |
 | ↑ ↓ ↩ Esc | Move, open, close (in the palette) |
 | Space | Toggle done on the selected tasks (events are skipped) |
@@ -97,7 +104,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | `notes` | string | `""` |
 | `subtasks` | array of `{id, title, done}`, where only `title` is needed | `[]`, and left out when empty |
 | `done` | bool | `false` |
-| `due` | `yyyy-MM-dd`, a local day | none |
+| `due` | `yyyy-MM-dd`, a local day, or an ISO-8601 timestamp for a task with a due time | none |
 | `start` | ISO-8601 timestamp. Its presence makes the entry an event | none |
 | `end` | ISO-8601 timestamp, after `start` | one hour after `start` |
 | `repeat` | `{frequency, interval, weekdays, until}`, where only `frequency` is needed | none, and left out when there is no rule |
@@ -110,6 +117,8 @@ In `repeat`:
 - `until` is the last `yyyy-MM-dd` day an occurrence can fall on.
 
 A task's rule moves its `due` along. An event's rule counts occurrences from its `start`, which is the first one, and each occurrence keeps the event's time of day and length. A monthly rule on the 31st falls on the last day of shorter months.
+
+A task with a due time writes `due` with your local offset, such as `"2026-09-22T08:00:00+09:00"`. It loads as that day at the same local time. Tasks without a time still write a plain `yyyy-MM-dd`.
 
 Events don't have `done` or `due`. The app writes their times with your local offset, such as `+09:00`, and reads any ISO-8601 offset or `Z`.
 
@@ -134,7 +143,8 @@ Tasks/
                               TaskFilter (filter + sort),
                               CalendarGrid (month/week date math) + EventLayout (week grid placement),
                               CalendarDrop (drag target under the pointer),
-                              SearchPalette (query parsing + result ranking)
+                              SearchPalette (query parsing + result ranking),
+                              ScheduleParser (dates, times and repeat rules typed into titles)
   Views/                      ContentView (split view), TaskRow, TaskDetailView (popover),
                               NotesEditor (subtask checklist + notes), WindowKeyMonitor
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray,
@@ -144,7 +154,7 @@ Tasks/
   AppIcon.icon                Icon Composer app icon
 scripts/                      release.sh (sign, notarize, publish), ExportOptions.plist
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,
-                              event layout and moves, repeat rules, palette search
+                              event layout and moves, repeat rules, palette search, title parsing
 ```
 
 All edits go through the document binding. That binding records undo and marks the file dirty, so there is no separate state store.

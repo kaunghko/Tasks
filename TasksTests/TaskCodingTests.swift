@@ -53,6 +53,50 @@ struct TaskCodingTests {
         #expect(tasks.first?["due"] as? String == "2026-09-22")
     }
 
+    @Test func dueTimeIsWrittenAsLocalTimestampAndRoundTrips() throws {
+        let day = try #require(TaskDates.parse("2026-09-22"))
+        let created = try #require(TaskDates.parse("2026-09-15T09:00:00Z"))
+        let original = TaskFile(tasks: [TaskItem(title: "a", due: day, dueTime: TimeOfDay(hour: 8, minute: 30), createdAt: created)])
+
+        let data = try original.encoded()
+        #expect(try TaskFile.decode(data) == original)
+
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let task = try #require((json?["tasks"] as? [[String: Any]])?.first)
+        let timed = try #require(TimeOfDay(hour: 8, minute: 30).on(day))
+        #expect(task["due"] as? String == TaskDates.localTimestampString(timed))
+    }
+
+    @Test func dueWithTimeLoadsAsDayAndLocalTime() throws {
+        let day = try #require(TaskDates.parse("2026-09-22"))
+        let timed = try #require(TimeOfDay(hour: 17).on(day))
+        let json = #"{"tasks": [{"title": "a", "due": "\#(TaskDates.localTimestampString(timed))"}]}"#
+        let task = try #require(try TaskFile.decode(Data(json.utf8)).tasks.first)
+
+        #expect(task.due == TaskDates.parse("2026-09-22"))
+        #expect(task.dueTime == TimeOfDay(hour: 17))
+        #expect(task.dueTimeLabel != nil)
+    }
+
+    @Test func plainDueHasNoTimeAndClearingDueClearsTime() throws {
+        let json = #"{"tasks": [{"title": "a", "due": "2026-09-22"}]}"#
+        var task = try #require(try TaskFile.decode(Data(json.utf8)).tasks.first)
+        #expect(task.dueTime == nil)
+
+        task.dueTime = TimeOfDay(hour: 9)
+        task.hasDueDate = false
+        #expect(task.dueTime == nil)
+    }
+
+    @Test func timedTaskBecomesAnEventAtItsDueTime() throws {
+        let day = try #require(TaskDates.parse("2026-09-22"))
+        var task = TaskItem(title: "a", due: day, dueTime: TimeOfDay(hour: 14))
+        task.makeEvent()
+
+        #expect(task.start == TimeOfDay(hour: 14).on(day))
+        #expect(task.dueTime == nil)
+    }
+
     @Test func eventRoundTripsWithLocalOffsetTimes() throws {
         let start = try #require(TaskDates.parse("2026-09-22T09:00:00+09:00"))
         let end = try #require(TaskDates.parse("2026-09-22T10:15:00+09:00"))

@@ -34,6 +34,12 @@ struct TaskChip: View {
                     .toggleStyle(.checkbox)
                     .labelsHidden()
                     .controlSize(.mini)
+                if let time = task.dueTimeLabel {
+                    Text(time)
+                        .monospacedDigit()
+                        .fixedSize()
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.85) : .secondary)
+                }
             }
             Text(task.title.isEmpty ? "Untitled" : task.title)
                 .lineLimit(1)

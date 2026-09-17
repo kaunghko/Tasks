@@ -104,7 +104,7 @@ enum TaskFilter: String, CaseIterable, Identifiable, Hashable {
 
     /// Events by start time, then tasks oldest first.
     static func sameDayOrder(_ a: TaskItem, _ b: TaskItem) -> Bool {
-        switch (a.start, b.start) {
+        switch (a.scheduledTime, b.scheduledTime) {
         case let (lhs?, rhs?) where lhs != rhs:
             return lhs < rhs
         case (.some, nil):
