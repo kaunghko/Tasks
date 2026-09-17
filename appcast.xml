@@ -3,6 +3,14 @@
     <channel>
         <title>Tasks</title>
         <item>
+            <title>0.4.0</title>
+            <pubDate>Fri, 18 Sep 2026 01:03:30 +0900</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.4.0</sparkle:shortVersionString>
+            <sparkle:minimumSystemVersion>26.0</sparkle:minimumSystemVersion>
+            <enclosure url="https://github.com/kaunghko/Tasks/releases/download/v0.4.0/K2Tasks-0.4.0.zip" length="5082570" type="application/octet-stream" sparkle:edSignature="uNrZkPaRHWWLokjJiNC9JTpxaittmySV+wUOSaMUHd6kRSph/8nFGez2416hEPFGEZlylEKTSEjgw84xxHCwDA=="/>
+        </item>
+        <item>
             <title>0.3.0</title>
             <pubDate>Thu, 17 Sep 2026 01:46:44 +0900</pubDate>
             <sparkle:version>3</sparkle:version>
