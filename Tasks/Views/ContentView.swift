@@ -125,14 +125,9 @@ struct ContentView: View {
         return ScrollViewReader { proxy in
             List(selection: $selection) {
                 ForEach(tasks) { task in
-                    TaskRow(task: $document.file.tasks[id: task.id], occurrence: task)
-                        .contentShape(.rect)
-                        // Simultaneous, so the List still handles selection and ⌘/⇧-clicks.
-                        .simultaneousGesture(TapGesture().onEnded {
-                            if !NSEvent.modifierFlags.contains(.command), !NSEvent.modifierFlags.contains(.shift) {
-                                detailTaskID = task.id
-                            }
-                        })
+                    TaskRow(task: $document.file.tasks[id: task.id], occurrence: task) {
+                        detailTaskID = task.id
+                    }
                         .popover(isPresented: detailsShown(task.id), arrowEdge: .trailing) {
                             TaskDetailView(task: $document.file.tasks[id: task.id])
                         }
