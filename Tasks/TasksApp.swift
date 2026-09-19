@@ -17,9 +17,23 @@ struct TasksApp: App {
         }
         .defaultSize(width: 960, height: 620)
         .commands {
+            // ⌘N adds a task (ContentView's toolbar), so a new window moves to ⇧⌘N.
+            CommandGroup(replacing: .newItem) {
+                NewWindowButton()
+            }
             CommandGroup(after: .appInfo) {
                 CheckForUpdatesView(updater: updaterController.updater)
             }
         }
+    }
+}
+
+/// File > New Window: a new untitled task file in its own window.
+private struct NewWindowButton: View {
+    @Environment(\.newDocument) private var newDocument
+
+    var body: some View {
+        Button("New Window") { newDocument(TaskDocument()) }
+            .keyboardShortcut("n", modifiers: [.command, .shift])
     }
 }

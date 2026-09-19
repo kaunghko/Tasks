@@ -73,8 +73,8 @@ struct ContentView: View {
                 .toolbar {
                     ToolbarItem(placement: .primaryAction) {
                         Button("New Task", systemImage: "plus", action: addTask)
-                            .keyboardShortcut("n", modifiers: [.command, .shift])
-                            .help("New task (⇧⌘N)")
+                            .keyboardShortcut("n", modifiers: .command)
+                            .help("New task (⌘N)")
                     }
                     ToolbarItem(placement: .primaryAction) {
                         Button("New Event", systemImage: "calendar.badge.plus", action: addEvent)

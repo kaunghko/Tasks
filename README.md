@@ -47,8 +47,8 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 
 | Shortcut | Action |
 |---|---|
-| ⌘N | New task file |
-| ⇧⌘N | New task |
+| ⌘N | New task |
+| ⇧⌘N | New window (new task file) |
 | ⌥⌘N | New event |
 | ⌘K | Search palette |
 | Tab or ⌘↩ | Apply the date or rule found in a title (task details) |
