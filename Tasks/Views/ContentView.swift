@@ -223,7 +223,7 @@ struct ContentView: View {
                 ContentUnavailableView(
                     "No Tasks",
                     systemImage: currentFilter.systemImage,
-                    description: Text("Press ⇧⌘N to add a task.")
+                    description: Text("Press ⌘N to add a task.")
                 )
             }
         }

@@ -2,49 +2,124 @@
 
 A native macOS task manager that renders a plain `.json` file.
 
-The file is the source of truth, the way Obsidian treats `.md` files. There is no database and no account. To sync or back up tasks, keep the file somewhere that already does that: iCloud Drive, Dropbox, or a git repo.
-
-Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-project.org), which handles in-app updates.
+- The file is the source of truth, the way Obsidian treats `.md` files.
+- No database, no account.
+- To sync or back up, keep the file somewhere that already does: iCloud Drive, Dropbox or a git repo.
+- Built with Swift and SwiftUI. Only dependency: [Sparkle](https://sparkle-project.org), for in-app updates.
 
 ## Features
 
-- Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ K2Tasks
-- A new task or event you close without changing anything (Esc, clicking elsewhere, or opening another task) is removed, so a mistaken click leaves nothing behind.
-- Sidebar filters (hidden by default; show it with the toolbar button): All, Today (including overdue), Upcoming, Completed
-- Events with start and end times, next to tasks:
-  - Add one with ⌥⌘N, drag from the start to the end time on the Week view's hour grid, double-click the grid for a one-hour event, or switch a task to Event in its details. Switching an event to a task keeps it at the event's start time as its due time, and switching back and forth keeps the event's times and the task's done state.
-  - Events show a colored bar instead of a checkbox, and their time range, such as `09:00–10:15`.
-  - Today lists events that haven't ended yet. Events fade once they're over and never count as completed.
-- Calendar with Month and Week views, similar to Calendar.app:
-  - The Week view is an hourly grid. Events are blocks sized by their length, overlapping ones sit side by side, and a red line marks the current time. Tasks with a due time sit on the grid at that time and take up half an hour. Other tasks sit in the all-day row.
-  - Drag a task to another day to reschedule it. Drag an event or task onto the hour grid to change its day and time, which gives an untimed task a due time. Drop a timed task on the all-day row to remove its time. Dropped on another day in the Month view, an item keeps its time. While you drag, the item dims in place and a preview shows where it will land: a block slides between 15-minute slots on the hour grid, and a chip follows the pointer over highlighted days.
+### Files
+- Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ K2Tasks.
+- Autosave, undo/redo and File ▸ Revert To, all from the macOS document system.
+
+### Lists
+- Sidebar filters: All, Today (includes overdue), Upcoming, Completed.
+- The sidebar is hidden by default. Show it with the toolbar button.
+- A new task or event closed without changes is removed (Esc, clicking elsewhere, or opening another task). A mistaken click leaves nothing behind.
+
+### Task details
+- Click a task or event in a list to expand it in place, with the caret where you clicked.
+- Edit its title, notes, subtasks, due date or times, repeat rule and alert.
+- Esc or a click outside closes it.
+- The list keeps its order while a task is open, and re-sorts after.
+- On the calendar, the same fields open in a popover.
+
+### Due times
+- A task can have a due time as well as a due date (Time under Due Date).
+- Rows and calendar chips show it, such as `Tomorrow · 08:00`.
+- Timed tasks sort by time within a day.
+
+### Events
+- Events have start and end times and live next to tasks.
+- Add one by:
+  - pressing ⌥⌘N
+  - dragging from start to end time on the Week view's hour grid
+  - double-clicking the hour grid (one-hour event)
+  - switching a task to Event in its details
+- Switching kinds:
+  - Event → task: the event's start becomes the task's due time.
+  - Timed task → event: the event starts at that time.
+  - Switching back and forth keeps the event's times and the task's done state.
+- Events show a colored bar instead of a checkbox, plus their time range, such as `09:00–10:15`.
+- Today lists events that haven't ended yet.
+- Past events fade and never count as completed.
+
+### Calendar
+Month and Week views, similar to Calendar.app.
+
+- **Week view**
+  - Hourly grid with a red line at the current time.
+  - Events are blocks sized by their length. Overlapping ones sit side by side.
+  - Tasks with a due time sit on the grid at that time and take up half an hour.
+  - Other tasks sit in the all-day row.
+- **Dragging**
+  - Drag a task to another day to reschedule it.
+  - Drag an event or task onto the hour grid to change its day and time. An untimed task gets a due time.
+  - Drop a timed task on the all-day row to remove its time.
+  - In the Month view, an item dropped on another day keeps its time.
+  - While dragging, the item dims in place and a preview shows where it lands:
+    - on the hour grid, a block slides between 15-minute slots
+    - elsewhere, a chip follows the pointer over highlighted days
+- **Other**
   - Double-click a day to add a task due that day.
-  - Show a "No Due Date" tray. Drag tasks from it onto a day, or drop a task on it to clear the due date.
-- ⌘K search palette that jumps to tasks and views:
-  - Typing searches task titles, task notes and views together.
-  - Tab limits the search to tasks.
-  - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
-  - To search everything again, press Backspace in an empty field, press Tab again, or click ✕ on the scope token. Esc also removes a scope before it closes the palette.
-- Click a task or event in a list to expand it in place, with the caret where you clicked, and edit its title, notes, subtasks, due date or times, repeat rule and alert. Esc or a click outside closes it. The list keeps its order while a task is open and re-sorts after. On the calendar, the same fields open in a popover.
-- Tasks can have a due time as well as a due date (Time under Due Date in its details). Rows and calendar chips show it, such as `Tomorrow · 08:00`, and timed tasks sort by time within a day. Switching a timed task to an event starts the event at that time.
-- Type a date, time, repeat rule or alert into the title and the details pick it up (English only):
-  - It understands days (`today`, `tonight`, `tomorrow`, `friday`, `next fri`, `in 3 days`, `next week`, `sep 22`, `9/22`, `2026-09-22`), times (`3pm`, `15:30`, `noon`, `at 3`, `by 5pm`, `3-4pm`, `from 9 to 10:15`, `for 2 hours`) repeat rules (`daily`, `every other week`, `every weekday`, `every mon wed`, `on sundays`, `every month on the 1st`, `every sep 22`, `until dec 17`) and alerts (`remind me 10 min before`, `notify 1h before`, `alert me the day before`, `remind me`, `no reminder`, `don't remind me`).
-  - Alerts only go before the time; "remind me 10 min after" isn't picked up. A plain "remind me" doesn't count before "to" or "about", so "Remind me to call mom" stays a title.
-  - A row under the title shows what it found, such as "tomorrow → Tomorrow". Nothing changes until you press Tab in the title, press ⌘↩ or click Apply. Then the phrase leaves the title. Undo reverts the whole change in one step. Click ✕ to ignore the suggestion.
-  - Applying never switches between task and event. In a task, a time becomes its due time: "a new task tomorrow 8 am" becomes "a new task", due tomorrow at 08:00. A time with no day means today. In an event, a time sets its start, and a range such as "3-4pm" or a length such as "for 2 hours" sets its end.
-  - Weekday abbreviations like `sat` only count after `on`, `every`, `next`, `this`, `by` or `due`, so "sat exam prep" stays a plain title. A time without am/pm from 1 to 6 means the afternoon.
-- Repeating tasks and events: pick Daily, Weekly, Monthly or Yearly under Repeat in its details, with an interval (every 2 weeks), days of the week for weekly rules, and an optional end date.
-  - Checking off a repeating task moves it to its next date that isn't in the past, unchecked and with its subtasks cleared. Once the rule has ended, it stays done.
-  - A repeating event shows on every occurrence in the calendar, and once in lists, at its current or next occurrence. Edits, drags and deletes apply to the whole series: drag Wednesday's lecture to Thursday and every occurrence moves a day.
-  - Rows, chips and event blocks show a ↻ icon. Hover over it for the rule.
-- Notifications for events and timed tasks, at their time by default. Pick an earlier time or None under Alert in its details. Tasks with only a due date don't notify.
-  - macOS delivers them even when the app is closed. The app schedules the next two weeks, up to 60 notifications, whenever a file opens or changes, so a repeating event keeps notifying as long as you open its file now and then.
-  - The first time something needs a notification, macOS asks for permission. Change it later in System Settings ▸ Notifications.
-- Subtasks: in a task's notes, start a line with `- [ ] ` (or `- [x] `) to turn it into a checkbox. Other lines stay plain notes.
-  - Return adds the next subtask. Return or Backspace on an empty subtask deletes it and ends the list.
-  - To delete any subtask, click the ✕ that shows when you hover over it or edit it, or right-click it.
-  - Task rows show progress, such as `1/2`, and search also matches subtask titles.
-- Autosave, undo/redo and File ▸ Revert To, all provided by the macOS document system
+  - "No Due Date" tray: drag tasks from it onto a day, or drop a task on it to clear its due date.
+
+### Search palette (⌘K)
+- Jumps to tasks and views.
+- Typing searches task titles, notes, subtask titles and views together.
+- Tab limits the search to tasks.
+- A leading `@` limits it to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
+- To search everything again: Backspace in an empty field, Tab again, or ✕ on the scope token.
+- Esc removes a scope first, then closes the palette.
+
+### Typing dates into titles
+Type a date, time, repeat rule or alert into a title and the details pick it up (English only).
+
+- **Understands**
+  - Days: `today`, `tonight`, `tomorrow`, `friday`, `next fri`, `in 3 days`, `next week`, `sep 22`, `9/22`, `2026-09-22`
+  - Times: `3pm`, `15:30`, `noon`, `at 3`, `by 5pm`, `3-4pm`, `from 9 to 10:15`, `for 2 hours`
+  - Repeat: `daily`, `every other week`, `every weekday`, `every mon wed`, `on sundays`, `every month on the 1st`, `every sep 22`, `until dec 17`
+  - Alerts: `remind me 10 min before`, `notify 1h before`, `alert me the day before`, `remind me`, `no reminder`, `don't remind me`
+- **Rules**
+  - Alerts only go before the time. "remind me 10 min after" isn't picked up.
+  - A plain "remind me" before "to" or "about" doesn't count: "Remind me to call mom" stays a title.
+  - Weekday abbreviations like `sat` only count after `on`, `every`, `next`, `this`, `by` or `due`. "sat exam prep" stays a title.
+  - A time from 1 to 6 without am/pm means the afternoon.
+  - A time with no day means today.
+- **Applying**
+  - A row under the title shows what it found, such as "tomorrow → Tomorrow".
+  - Nothing changes until you press Tab in the title, press ⌘↩ or click Apply. Click ✕ to ignore it.
+  - Applying removes the phrase from the title. Undo reverts it in one step.
+  - Applying never switches between task and event.
+  - In a task, a time becomes the due time: "a new task tomorrow 8 am" → "a new task", due tomorrow at 08:00.
+  - In an event, a time sets the start. A range ("3-4pm") or length ("for 2 hours") sets the end.
+
+### Repeating tasks and events
+- Under Repeat in the details: Daily, Weekly, Monthly or Yearly.
+- Options: an interval (every 2 weeks), weekdays for weekly rules, an optional end date.
+- Checking off a repeating task moves it to its next date that isn't in the past, unchecked and with subtasks cleared.
+- Once the rule has ended, the task stays done.
+- A repeating event shows on every occurrence in the calendar, and once in lists (current or next occurrence).
+- Edits, drags and deletes apply to the whole series: drag Wednesday's lecture to Thursday and every occurrence moves a day.
+- Rows, chips and event blocks show a ↻ icon. Hover over it for the rule.
+
+### Notifications
+- For events and timed tasks, at their time by default.
+- Pick an earlier time or None under Alert in the details.
+- Tasks with only a due date don't notify.
+- macOS delivers them even when the app is closed.
+- Scheduled for the next two weeks (up to 60) whenever a file opens or changes. A repeating event keeps notifying as long as you open its file now and then.
+- macOS asks for permission the first time. Change it later in System Settings ▸ Notifications.
+
+### Subtasks
+- In a task's notes, start a line with `- [ ] ` (or `- [x] `) to make it a checkbox. Other lines stay plain notes.
+- Return adds the next subtask.
+- Return or Backspace on an empty subtask deletes it and ends the list.
+- Delete any subtask with the ✕ shown on hover or while editing, or by right-clicking it.
+- Task rows show progress, such as `1/2`.
+
+## Shortcuts
 
 | Shortcut | Action |
 |---|---|
@@ -117,28 +192,31 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | `alert` | minutes before the time, such as `10`, or `"none"`. For events and tasks with a due time | at the time, and left out then |
 | `createdAt` | ISO-8601 timestamp | time of loading |
 
-In `repeat`:
-- `frequency` is `daily`, `weekly`, `monthly` or `yearly`.
-- `interval` repeats every that many days, weeks, months or years. It defaults to 1 and is left out when 1.
-- `weekdays` is for weekly rules only: `sun`, `mon`, `tue`, `wed`, `thu`, `fri`, `sat`. Without it, a weekly rule repeats on the weekday it starts.
-- `until` is the last `yyyy-MM-dd` day an occurrence can fall on.
+### `repeat`
+- `frequency`: `daily`, `weekly`, `monthly` or `yearly`.
+- `interval`: every that many days, weeks, months or years. Defaults to 1, left out when 1.
+- `weekdays`: weekly rules only. `sun`, `mon`, `tue`, `wed`, `thu`, `fri`, `sat`. Without it, a weekly rule repeats on the weekday it starts.
+- `until`: the last `yyyy-MM-dd` day an occurrence can fall on.
+- A task's rule moves its `due` along.
+- An event's rule counts occurrences from its `start` (the first one). Each keeps the event's time of day and length.
+- A monthly rule on the 31st falls on the last day of shorter months.
 
-A task's rule moves its `due` along. An event's rule counts occurrences from its `start`, which is the first one, and each occurrence keeps the event's time of day and length. A monthly rule on the 31st falls on the last day of shorter months.
+### Dates and times
+- A task without a time writes `due` as a plain `yyyy-MM-dd`.
+- A task with a due time writes `due` with your local offset, such as `"2026-09-22T08:00:00+09:00"`. It loads as that day at the same local time.
+- Events don't have `done` or `due`.
+- Event times are written with your local offset, such as `+09:00`. Any ISO-8601 offset or `Z` is read.
 
-A task with a due time writes `due` with your local offset, such as `"2026-09-22T08:00:00+09:00"`. It loads as that day at the same local time. Tasks without a time still write a plain `yyyy-MM-dd`.
-
-Events don't have `done` or `due`. The app writes their times with your local offset, such as `+09:00`, and reads any ISO-8601 offset or `Z`.
-
-The file is meant to be edited by hand as well as by the app. `{"tasks": [{"title": "Buy milk"}]}` is a valid file.
-
-The app writes JSON pretty-printed with sorted keys, so git diffs stay small.
-
-When you edit a file in the app and save it, a few things are not kept:
-- Unknown fields.
-- Due dates that can't be parsed.
-- Event times that can't be parsed. An entry with an unreadable `start` loads as a task.
-- An `alert` that isn't a positive number or `"none"`. It loads as at the time.
-- A `repeat` with a missing or unknown `frequency`, unknown weekday names, or an unreadable `until`.
+### Editing by hand
+- The file is meant to be edited by hand as well as by the app.
+- `{"tasks": [{"title": "Buy milk"}]}` is a valid file.
+- The app writes pretty-printed JSON with sorted keys, so git diffs stay small.
+- Saving from the app drops:
+  - unknown fields
+  - due dates that can't be parsed
+  - event times that can't be parsed (an entry with an unreadable `start` loads as a task)
+  - an `alert` that isn't a positive number or `"none"` (loads as at the time)
+  - a `repeat` with a missing or unknown `frequency`, unknown weekday names, or an unreadable `until`
 
 ## Architecture
 
@@ -169,11 +247,12 @@ TasksTests/                   Swift Testing: coding round-trips, filters, sortin
                               click-to-caret hit testing
 ```
 
-All edits go through the document binding. That binding records undo and marks the file dirty, so there is no separate state store.
+- All edits go through the document binding.
+- That binding records undo and marks the file dirty, so there is no separate state store.
 
 ## Build
 
-Requires Xcode 26 or later and macOS 26 or later.
+Requires Xcode 26+ and macOS 26+.
 
 ```sh
 open Tasks.xcodeproj          # then ⌘R
@@ -182,6 +261,9 @@ xcodebuild test -scheme Tasks -destination 'platform=macOS'
 
 ## Install
 
-Download `K2Tasks-x.y.z.zip` from [Releases](https://github.com/kaunghko/Tasks/releases), unzip it, and drag `K2Tasks.app` into `/Applications`. Builds are signed with Developer ID and notarized by Apple, so they open without warnings. After that, the app checks for updates once a day and can install them itself. You can also use K2Tasks ▸ Check for Updates….
+- Download `K2Tasks-x.y.z.zip` from [Releases](https://github.com/kaunghko/Tasks/releases).
+- Unzip it and drag `K2Tasks.app` into `/Applications`.
+- Builds are signed with Developer ID and notarized, so they open without warnings.
+- The app checks for updates daily and can install them itself, or use K2Tasks ▸ Check for Updates….
 
 Maintainers: see [RELEASING.md](RELEASING.md).
