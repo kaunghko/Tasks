@@ -235,8 +235,11 @@ private struct CalendarDayTarget: ViewModifier {
             .background(isTargeted ? Color.accentColor.opacity(0.12) : .clear)
             .animation(.easeOut(duration: 0.12), value: isTargeted)
             .contentShape(.rect)
-            .onTapGesture(count: 2) { actions.add(day) }
-            .onTapGesture { actions.clearSelection() }
+            // One tap reading AppKit's click count, not `onTapGesture(count: 2)`: a double-tap
+            // gesture makes every tap inside it, like a chip's, wait out the double-click interval.
+            .onTapGesture {
+                if NSApp.currentEvent?.clickCount == 2 { actions.add(day) } else { actions.clearSelection() }
+            }
             .calendarDropZone(day.map { allDay ? .allDay($0) : .day($0) } ?? .undated)
     }
 }

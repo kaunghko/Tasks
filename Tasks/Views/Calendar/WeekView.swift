@@ -242,11 +242,16 @@ private struct DayTimeline: View {
                     )
                 }
         )
-        .onTapGesture(count: 2, coordinateSpace: .local) { location in
-            let start = date(atY: location.y)
-            actions.addEvent(start, start.addingTimeInterval(TaskItem.defaultEventDuration))
+        // Not `onTapGesture(count: 2)`, which would delay clicks on events until the double-click
+        // interval passes. See `calendarDropTarget`.
+        .onTapGesture(coordinateSpace: .local) { location in
+            if NSApp.currentEvent?.clickCount == 2 {
+                let start = date(atY: location.y)
+                actions.addEvent(start, start.addingTimeInterval(TaskItem.defaultEventDuration))
+            } else {
+                actions.clearSelection()
+            }
         }
-        .onTapGesture { actions.clearSelection() }
         .calendarDropZone(.timeline(day))
     }
 
