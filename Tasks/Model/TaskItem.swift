@@ -283,10 +283,11 @@ extension TaskItem {
         move(toDay: day, calendar: calendar)
     }
 
-    /// Turns an event back into a task due on the day it started.
-    mutating func makeTask(done: Bool = false) {
-        guard isEvent else { return }
-        start = nil
+    /// Turns an event back into a task due on the day and at the time it started, so it keeps its place on the calendar.
+    mutating func makeTask(done: Bool = false, calendar: Calendar = .current) {
+        guard let start else { return }
+        dueTime = TimeOfDay(of: start, calendar: calendar)
+        self.start = nil
         end = nil
         self.done = done
     }

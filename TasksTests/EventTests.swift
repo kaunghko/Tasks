@@ -127,6 +127,14 @@ struct EventTests {
         #expect(item.due == day("2026-09-15"))
     }
 
+    @Test func makeTaskKeepsTheStartTimeAsDueTime() {
+        var item = lecture
+        item.makeTask()
+
+        #expect(item.dueTime == TimeOfDay(hour: 9))
+        #expect(item.scheduledTime == at("2026-09-15", hour: 9))
+    }
+
     @Test func eventStartIsStableForTasks() {
         let task = TaskItem(title: "Essay", due: day("2026-09-15"))
         #expect(task.eventStart == day("2026-09-15"))
