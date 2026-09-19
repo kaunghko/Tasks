@@ -304,7 +304,7 @@ struct ContentView: View {
     private func openDetails(_ id: TaskItem.ID, caret: CaretTarget = .selectedTitle) {
         if destination == .calendar {
             Task {
-                try? await Task.sleep(for: .milliseconds(150))
+                await Task.yield()
                 detailTaskID = id
             }
         } else {
