@@ -17,6 +17,8 @@ struct ContentView: View {
     @State private var frozenOrder: [TaskItem.ID]?
     /// Set briefly while an item switches between task and event from its popover.
     @State private var kindSwitchID: TaskItem.ID?
+    /// A task or event as it was created. Closed without a change, it's removed as a mistaken click.
+    @State private var untouchedNew: TaskItem?
     @State private var isPaletteShown = false
     /// The sidebar starts hidden so the task list opens uncluttered.
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
@@ -94,6 +96,13 @@ struct ContentView: View {
             // An expanded row shouldn't reopen as a popover in the calendar, or vice versa.
             detailTaskID = nil
             frozenOrder = nil
+        }
+        .onChange(of: detailTaskID) { old, new in
+            guard let created = untouchedNew, created.id == old, new != old else { return }
+            untouchedNew = nil
+            if document.file.tasks.first(where: { $0.id == created.id }) == created {
+                delete([created.id])
+            }
         }
         .environment(\.willSwitchKind, willSwitchKind)
         .task(id: NotificationInput(tasks: document.file.tasks, key: notificationKey)) {
@@ -379,6 +388,7 @@ struct ContentView: View {
 
     private func insert(_ task: TaskItem) {
         document.file.tasks.append(task)
+        untouchedNew = task
         selection = [task.id]
         openDetails(task.id)
     }

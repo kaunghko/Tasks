@@ -9,6 +9,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 ## Features
 
 - Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ K2Tasks
+- A new task or event you close without changing anything (Esc, clicking elsewhere, or opening another task) is removed, so a mistaken click leaves nothing behind.
 - Sidebar filters (hidden by default; show it with the toolbar button): All, Today (including overdue), Upcoming, Completed
 - Events with start and end times, next to tasks:
   - Add one with ⌥⌘N, drag from the start to the end time on the Week view's hour grid, double-click the grid for a one-hour event, or switch a task to Event in its details. Switching back and forth keeps the event's times and the task's done state.
