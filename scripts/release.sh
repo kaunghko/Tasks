@@ -46,7 +46,7 @@ sed -i '' -E \
 trap 'git checkout -- "$PBXPROJ" appcast.xml 2>/dev/null || true' ERR
 
 echo "==> Testing"
-xcodebuild test -scheme Tasks -destination 'platform=macOS' -quiet
+xcodebuild test -scheme Tasks -destination 'platform=macOS' -derivedDataPath "$ROOT/build/test-derived" -quiet
 
 echo "==> Archiving $VERSION ($BUILD_NUMBER)"
 rm -rf "$BUILD" && mkdir -p "$BUILD/updates"
