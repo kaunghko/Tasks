@@ -41,6 +41,25 @@ final class WindowKeyMonitor {
         return window.isKeyWindow && window.parent?.windowNumber == windowNumber
     }
 
+    /// Whether keyboard focus is inside the list row holding the anchor, or on the list itself.
+    var isFocusInRow: Bool {
+        guard let view, let responder = view.window?.firstResponder as? NSView else { return false }
+        var row: NSView? = view
+        while let current = row, !(current is NSTableRowView) {
+            row = current.superview
+        }
+        guard let row else { return false }
+        return responder.isDescendant(of: row) || responder === Self.enclosingTable(of: row)
+    }
+
+    private static func enclosingTable(of view: NSView) -> NSTableView? {
+        var current = view.superview
+        while let view = current, !(view is NSTableView) {
+            current = view.superview
+        }
+        return current as? NSTableView
+    }
+
     func stop() {
         if let token {
             NSEvent.removeMonitor(token)

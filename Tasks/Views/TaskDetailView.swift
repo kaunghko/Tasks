@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Title, kind, schedule and notes for one task or event, shown in a popover next to it.
+/// Title, kind, schedule and notes for one task or event, in a popover next to its calendar chip.
+/// List rows edit the same fields inline, in `TaskRow`.
 struct TaskDetailView: View {
     @Binding var task: TaskItem
-    @Environment(\.willSwitchKind) private var willSwitchKind
     /// Detected phrases the user dismissed while this popover is open.
     @State private var dismissedPhrases: Set<String> = []
     @State private var keyMonitor = WindowKeyMonitor()
@@ -12,21 +12,18 @@ struct TaskDetailView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Kind", selection: kind) {
-                    Text("Task").tag(false)
-                    Text("Event").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
+                TaskKindPicker(task: $task)
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(maxWidth: .infinity)
 
                 TextField("Title", text: $task.title, axis: .vertical)
                     .focused($isTitleFocused)
                 if let detected {
                     DetectedScheduleRow(
                         detected: detected,
-                        preview: applying(detected),
-                        onApply: { apply(detected) },
+                        preview: task.applying(detected),
+                        onApply: { task = task.applying(detected) },
                         onDismiss: { dismissedPhrases.insert(detected.phrase) }
                     )
                 }
@@ -36,56 +33,16 @@ struct TaskDetailView: View {
             }
 
             Section {
-                if task.start != nil, task.end != nil {
-                    // No `in:` range on Ends: a range that moves with the start makes the picker
-                    // clamp and write back mid-update. `eventEnd` keeps the end after the start.
-                    DatePicker("Starts", selection: $task.eventStart, displayedComponents: [.date, .hourAndMinute])
-                    DatePicker("Ends", selection: $task.eventEnd, displayedComponents: [.date, .hourAndMinute])
-                } else {
-                    Toggle("Due Date", isOn: $task.hasDueDate)
-                    if task.hasDueDate {
-                        DatePicker("Date", selection: $task.dueDay, displayedComponents: .date)
-                        Toggle("Time", isOn: $task.hasDueTime)
-                        if task.hasDueTime {
-                            DatePicker("Due At", selection: $task.dueTimeDate, displayedComponents: .hourAndMinute)
-                        }
-                    }
-                }
-                if task.isEvent || task.hasDueTime {
-                    Picker("Alert", selection: $task.alert) {
-                        ForEach(TaskAlert.presets, id: \.self) { alert in
-                            Text(alert.title).tag(alert)
-                        }
-                        // A custom value written by hand still shows.
-                        if !TaskAlert.presets.contains(task.alert) {
-                            Text(task.alert.title).tag(task.alert)
-                        }
-                    }
-                }
+                TaskScheduleFields(task: $task)
             }
 
             Section {
-                Picker("Repeat", selection: $task.repeatFrequency) {
-                    Text("Never").tag(Recurrence.Frequency?.none)
-                    ForEach(Recurrence.Frequency.allCases) { frequency in
-                        Text(frequency.title).tag(Optional(frequency))
-                    }
-                }
-                if let recurrence = task.recurrence {
-                    Stepper(value: $task.repeatInterval, in: 1...99) {
-                        Text("Every \(recurrence.interval) \(recurrence.frequency.unit(recurrence.interval))")
-                    }
-                    if recurrence.frequency == .weekly {
-                        WeekdayPicker(selection: $task.repeatWeekdays)
-                    }
-                    Toggle("End Repeat", isOn: $task.hasRepeatEnd)
-                    if recurrence.until != nil {
-                        DatePicker("Until", selection: $task.repeatUntil, displayedComponents: .date)
-                    }
-                }
+                TaskRepeatFields(task: $task)
             }
 
-            NotesEditor(task: $task)
+            Section("Notes") {
+                NotesEditor(task: $task)
+            }
 
             Section {
                 LabeledContent(
@@ -103,10 +60,7 @@ struct TaskDetailView: View {
 
     /// What the title suggests, unless dismissed.
     private var detected: DetectedSchedule? {
-        guard let detected = ScheduleParser.parse(task.title),
-              !dismissedPhrases.contains(detected.phrase)
-        else { return nil }
-        return detected
+        task.detectedSchedule(ignoring: dismissedPhrases)
     }
 
     /// Tab in the title field applies the suggestion. The field editor takes Tab to move focus
@@ -116,23 +70,40 @@ struct TaskDetailView: View {
               modifiers.intersection([.shift, .command, .option, .control]).isEmpty,
               let detected
         else { return false }
-        apply(detected)
+        // One assignment, so it's a single undo step. The kind stays as it is.
+        task = task.applying(detected)
         return true
     }
+}
 
-    private func applying(_ detected: DetectedSchedule) -> TaskItem {
-        var item = task
+extension TaskItem {
+    /// What the title suggests, unless the user dismissed that phrase.
+    func detectedSchedule(ignoring dismissed: Set<String>) -> DetectedSchedule? {
+        guard let detected = ScheduleParser.parse(title), !dismissed.contains(detected.phrase) else { return nil }
+        return detected
+    }
+
+    /// This item with a detected schedule applied.
+    func applying(_ detected: DetectedSchedule) -> TaskItem {
+        var item = self
         item.apply(detected)
         return item
     }
+}
 
-    /// One assignment, so it's a single undo step. The kind stays as it is.
-    private func apply(_ detected: DetectedSchedule) {
-        task = applying(detected)
+/// Task or Event. Switches kinds in one assignment, so it's a single undo step. Switching back
+/// restores the event's times or the task's done state from before, even if the editor reopened in between.
+struct TaskKindPicker: View {
+    @Binding var task: TaskItem
+    @Environment(\.willSwitchKind) private var willSwitchKind
+
+    var body: some View {
+        Picker("Kind", selection: kind) {
+            Text("Task").tag(false)
+            Text("Event").tag(true)
+        }
     }
 
-    /// Switches kinds in one assignment, so it's a single undo step. Switching back restores
-    /// the event's times or the task's done state from before, even if the popover reopened in between.
     private var kind: Binding<Bool> {
         Binding(
             get: { task.isEvent },
@@ -157,8 +128,68 @@ struct TaskDetailView: View {
     }
 }
 
+/// An event's start and end, or a task's due date and time, and the alert.
+struct TaskScheduleFields: View {
+    @Binding var task: TaskItem
+
+    var body: some View {
+        if task.start != nil, task.end != nil {
+            // No `in:` range on Ends: a range that moves with the start makes the picker
+            // clamp and write back mid-update. `eventEnd` keeps the end after the start.
+            DatePicker("Starts", selection: $task.eventStart, displayedComponents: [.date, .hourAndMinute])
+            DatePicker("Ends", selection: $task.eventEnd, displayedComponents: [.date, .hourAndMinute])
+        } else {
+            Toggle("Due Date", isOn: $task.hasDueDate)
+            if task.hasDueDate {
+                DatePicker("Date", selection: $task.dueDay, displayedComponents: .date)
+                Toggle("Time", isOn: $task.hasDueTime)
+                if task.hasDueTime {
+                    DatePicker("Due At", selection: $task.dueTimeDate, displayedComponents: .hourAndMinute)
+                }
+            }
+        }
+        if task.isEvent || task.hasDueTime {
+            Picker("Alert", selection: $task.alert) {
+                ForEach(TaskAlert.presets, id: \.self) { alert in
+                    Text(alert.title).tag(alert)
+                }
+                // A custom value written by hand still shows.
+                if !TaskAlert.presets.contains(task.alert) {
+                    Text(task.alert.title).tag(task.alert)
+                }
+            }
+        }
+    }
+}
+
+/// How often the item repeats, and until when.
+struct TaskRepeatFields: View {
+    @Binding var task: TaskItem
+
+    var body: some View {
+        Picker("Repeat", selection: $task.repeatFrequency) {
+            Text("Never").tag(Recurrence.Frequency?.none)
+            ForEach(Recurrence.Frequency.allCases) { frequency in
+                Text(frequency.title).tag(Optional(frequency))
+            }
+        }
+        if let recurrence = task.recurrence {
+            Stepper(value: $task.repeatInterval, in: 1...99) {
+                Text("Every \(recurrence.interval) \(recurrence.frequency.unit(recurrence.interval))")
+            }
+            if recurrence.frequency == .weekly {
+                WeekdayPicker(selection: $task.repeatWeekdays)
+            }
+            Toggle("End Repeat", isOn: $task.hasRepeatEnd)
+            if recurrence.until != nil {
+                DatePicker("Until", selection: $task.repeatUntil, displayedComponents: .date)
+            }
+        }
+    }
+}
+
 /// What was found in the title and what applying it would set, with Apply (Tab or ⌘↩) and dismiss buttons.
-private struct DetectedScheduleRow: View {
+struct DetectedScheduleRow: View {
     let detected: DetectedSchedule
     let preview: TaskItem
     let onApply: () -> Void

@@ -11,7 +11,7 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 - Open any `.json` task list: File ▸ Open, Open Recent, or Finder ▸ Open With ▸ K2Tasks
 - Sidebar filters (hidden by default; show it with the toolbar button): All, Today (including overdue), Upcoming, Completed
 - Events with start and end times, next to tasks:
-  - Add one with ⌥⌘N, drag from the start to the end time on the Week view's hour grid, double-click the grid for a one-hour event, or switch a task to Event in its popover. Switching back and forth keeps the event's times and the task's done state.
+  - Add one with ⌥⌘N, drag from the start to the end time on the Week view's hour grid, double-click the grid for a one-hour event, or switch a task to Event in its details. Switching back and forth keeps the event's times and the task's done state.
   - Events show a colored bar instead of a checkbox, and their time range, such as `09:00–10:15`.
   - Today lists events that haven't ended yet. Events fade once they're over and never count as completed.
 - Calendar with Month and Week views, similar to Calendar.app:
@@ -24,19 +24,19 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
   - Tab limits the search to tasks.
   - A leading `@` limits the search to views: `@today` (or `@daily`), `@upcoming`, `@done`, `@calendar`, `@month`, `@week`.
   - To search everything again, press Backspace in an empty field, press Tab again, or click ✕ on the scope token. Esc also removes a scope before it closes the palette.
-- Click a task or event to edit its title, notes, due date or times in a popover
-- Tasks can have a due time as well as a due date (Time under Due Date in the popover). Rows and calendar chips show it, such as `Tomorrow · 08:00`, and timed tasks sort by time within a day. Switching a timed task to an event starts the event at that time.
-- Type a date, time, repeat rule or alert into the title and the popover picks it up (English only):
+- Click a task or event in a list to expand it in place, with the caret where you clicked, and edit its title, notes, subtasks, due date or times, repeat rule and alert. Esc or a click outside closes it. The list keeps its order while a task is open and re-sorts after. On the calendar, the same fields open in a popover.
+- Tasks can have a due time as well as a due date (Time under Due Date in its details). Rows and calendar chips show it, such as `Tomorrow · 08:00`, and timed tasks sort by time within a day. Switching a timed task to an event starts the event at that time.
+- Type a date, time, repeat rule or alert into the title and the details pick it up (English only):
   - It understands days (`today`, `tonight`, `tomorrow`, `friday`, `next fri`, `in 3 days`, `next week`, `sep 22`, `9/22`, `2026-09-22`), times (`3pm`, `15:30`, `noon`, `at 3`, `by 5pm`, `3-4pm`, `from 9 to 10:15`, `for 2 hours`) repeat rules (`daily`, `every other week`, `every weekday`, `every mon wed`, `on sundays`, `every month on the 1st`, `every sep 22`, `until dec 17`) and alerts (`remind me 10 min before`, `notify 1h before`, `alert me the day before`, `remind me`, `no reminder`, `don't remind me`).
   - Alerts only go before the time; "remind me 10 min after" isn't picked up. A plain "remind me" doesn't count before "to" or "about", so "Remind me to call mom" stays a title.
   - A row under the title shows what it found, such as "tomorrow → Tomorrow". Nothing changes until you press Tab in the title, press ⌘↩ or click Apply. Then the phrase leaves the title. Undo reverts the whole change in one step. Click ✕ to ignore the suggestion.
   - Applying never switches between task and event. In a task, a time becomes its due time: "a new task tomorrow 8 am" becomes "a new task", due tomorrow at 08:00. A time with no day means today. In an event, a time sets its start, and a range such as "3-4pm" or a length such as "for 2 hours" sets its end.
   - Weekday abbreviations like `sat` only count after `on`, `every`, `next`, `this`, `by` or `due`, so "sat exam prep" stays a plain title. A time without am/pm from 1 to 6 means the afternoon.
-- Repeating tasks and events: pick Daily, Weekly, Monthly or Yearly under Repeat in the popover, with an interval (every 2 weeks), days of the week for weekly rules, and an optional end date.
+- Repeating tasks and events: pick Daily, Weekly, Monthly or Yearly under Repeat in its details, with an interval (every 2 weeks), days of the week for weekly rules, and an optional end date.
   - Checking off a repeating task moves it to its next date that isn't in the past, unchecked and with its subtasks cleared. Once the rule has ended, it stays done.
   - A repeating event shows on every occurrence in the calendar, and once in lists, at its current or next occurrence. Edits, drags and deletes apply to the whole series: drag Wednesday's lecture to Thursday and every occurrence moves a day.
   - Rows, chips and event blocks show a ↻ icon. Hover over it for the rule.
-- Notifications for events and timed tasks, at their time by default. Pick an earlier time or None under Alert in the popover. Tasks with only a due date don't notify.
+- Notifications for events and timed tasks, at their time by default. Pick an earlier time or None under Alert in its details. Tasks with only a due date don't notify.
   - macOS delivers them even when the app is closed. The app schedules the next two weeks, up to 60 notifications, whenever a file opens or changes, so a repeating event keeps notifying as long as you open its file now and then.
   - The first time something needs a notification, macOS asks for permission. Change it later in System Settings ▸ Notifications.
 - Subtasks: in a task's notes, start a line with `- [ ] ` (or `- [x] `) to turn it into a checkbox. Other lines stay plain notes.
@@ -51,7 +51,8 @@ Built with Swift and SwiftUI. Its only dependency is [Sparkle](https://sparkle-p
 | ⇧⌘N | New task |
 | ⌥⌘N | New event |
 | ⌘K | Search palette |
-| Tab or ⌘↩ | Apply the date or rule found in a title (popover) |
+| Tab or ⌘↩ | Apply the date or rule found in a title (task details) |
+| Esc | Close an expanded task (list views) |
 | Tab / @ | Search tasks / views (in the palette) |
 | ↑ ↓ ↩ Esc | Move, open, close (in the palette) |
 | Space | Toggle done on the selected tasks (events are skipped) |
@@ -151,10 +152,11 @@ Tasks/
                               CalendarDrop (drag target under the pointer),
                               SearchPalette (query parsing + result ranking),
                               ScheduleParser (dates, times and repeat rules typed into titles),
+                              TextHitTest (which character a click lands on),
                               TaskAlert + Reminders (which notifications to schedule)
   Notifications/              NotificationScheduler (syncs pending notifications per document)
-  Views/                      ContentView (split view), TaskRow, TaskDetailView (popover),
-                              NotesEditor (subtask checklist + notes), WindowKeyMonitor
+  Views/                      ContentView (split view), TaskRow (expands in place), TaskDetailView (calendar popover),
+                              NotesEditor (subtask checklist + notes), WindowKeyMonitor, Caret
   Views/Calendar/             CalendarView, MonthGridView, WeekView, TaskChip, UndatedTray,
                               CalendarDragging (live drag state, drop zones, previews)
   Views/Search/               SearchPaletteView (⌘K palette)
@@ -162,7 +164,8 @@ Tasks/
   AppIcon.icon                Icon Composer app icon
 scripts/                      release.sh (sign, notarize, publish), ExportOptions.plist
 TasksTests/                   Swift Testing: coding round-trips, filters, sorting, calendar grid,
-                              event layout and moves, repeat rules, palette search, title parsing, reminders
+                              event layout and moves, repeat rules, palette search, title parsing, reminders,
+                              click-to-caret hit testing
 ```
 
 All edits go through the document binding. That binding records undo and marks the file dirty, so there is no separate state store.

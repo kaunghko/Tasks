@@ -5,32 +5,50 @@ import SwiftUI
 /// into a subtask; Return adds the next one, and Return or Backspace on an empty one ends the list.
 struct NotesEditor: View {
     @Binding var task: TaskItem
+    /// Inline in a list row, notes are a field that grows with its text instead of a fixed-height editor.
+    var isInline = false
+    /// Where to put the caret in the notes when this appears, as a UTF-16 offset.
+    var initialCaret: Int?
 
     @FocusState private var focus: NotesField?
     @State private var keyMonitor = WindowKeyMonitor()
 
     var body: some View {
-        Section("Notes") {
-            ForEach(task.subtasks) { subtask in
-                SubtaskRow(
-                    subtask: $task.subtasks[id: subtask.id],
-                    focus: $focus,
-                    onSubmit: { submit(subtask.id) },
-                    onDelete: { remove(subtask.id) }
-                )
-            }
+        ForEach(task.subtasks) { subtask in
+            SubtaskRow(
+                subtask: $task.subtasks[id: subtask.id],
+                focus: $focus,
+                onSubmit: { submit(subtask.id) },
+                onDelete: { remove(subtask.id) }
+            )
+        }
 
+        notesField
+            .focused($focus, equals: .notes)
+            .background(WindowKeyMonitor.Anchor(monitor: keyMonitor))
+            .onAppear { keyMonitor.start(handler: handleKey(_:modifiers:)) }
+            .onDisappear { keyMonitor.stop() }
+            .onChange(of: task.notes) { _, notes in
+                moveChecklistLines(from: notes)
+            }
+            .task {
+                guard let initialCaret else { return }
+                await Caret.place(at: initialCaret) { focus = .notes }
+            }
+    }
+
+    @ViewBuilder
+    private var notesField: some View {
+        if isInline {
+            TextField("Notes", text: $task.notes, prompt: Text("Notes"), axis: .vertical)
+                .textFieldStyle(.plain)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        } else {
             TextEditor(text: $task.notes)
                 .font(.body)
                 .frame(minHeight: 120)
                 .scrollContentBackground(.hidden)
-                .focused($focus, equals: .notes)
-                .background(WindowKeyMonitor.Anchor(monitor: keyMonitor))
-                .onAppear { keyMonitor.start(handler: handleKey) }
-                .onDisappear { keyMonitor.stop() }
-                .onChange(of: task.notes) { _, notes in
-                    moveChecklistLines(from: notes)
-                }
         }
     }
 
@@ -59,7 +77,14 @@ struct NotesEditor: View {
 
     /// Backspace in an empty subtask deletes it. The field editor swallows Backspace in an
     /// empty field before `.onKeyPress` sees it, so this runs from the window's key monitor.
-    private func handleKey(_ keyCode: UInt16) -> Bool {
+    /// Return in the inline notes field starts a new line, where a text field would end editing.
+    private func handleKey(_ keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+        if keyCode == 36, isInline, focus == .notes,
+           modifiers.intersection([.command, .option, .control]).isEmpty,
+           let editor = NSApp.keyWindow?.firstResponder as? NSTextView {
+            editor.insertNewlineIgnoringFieldEditor(nil)
+            return true
+        }
         guard keyCode == 51, case .subtask(let id)? = focus,
               task.subtasks.first(where: { $0.id == id })?.title.isEmpty == true
         else { return false }

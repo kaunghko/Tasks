@@ -8,8 +8,13 @@ struct ContentView: View {
 
     @State private var destination: AppDestination? = .filter(.all)
     @State private var selection: Set<TaskItem.ID> = []
-    /// The task whose details popover is open.
+    /// The task being edited: expanded in place in a list, or in a popover on the calendar.
     @State private var detailTaskID: TaskItem.ID?
+    /// Where the caret goes in a list row as it expands.
+    @State private var caretTarget: CaretTarget = .selectedTitle
+    /// The list's order when a row expanded. Kept while it's open, so an edit that re-sorts
+    /// the list, like setting a due date, doesn't move the row away from the cursor.
+    @State private var frozenOrder: [TaskItem.ID]?
     /// Set briefly while an item switches between task and event from its popover.
     @State private var kindSwitchID: TaskItem.ID?
     @State private var isPaletteShown = false
@@ -19,6 +24,8 @@ struct ContentView: View {
     @SceneStorage("calendarMode") private var calendarMode: CalendarMode = .month
     /// A task the list should scroll to and then open details for.
     @State private var revealID: TaskItem.ID?
+    /// Where the caret goes once the revealed task's row expands.
+    @State private var revealCaret: CaretTarget = .selectedTitle
     /// Stands in for `fileURL` until an untitled document is saved.
     @State private var untitledKey = UUID().uuidString
     /// The key the notifications were last scheduled under, so a rename or first save drops the old ones.
@@ -83,6 +90,11 @@ struct ContentView: View {
                     }
                 }
         }
+        .onChange(of: destination) {
+            // An expanded row shouldn't reopen as a popover in the calendar, or vice versa.
+            detailTaskID = nil
+            frozenOrder = nil
+        }
         .environment(\.willSwitchKind, willSwitchKind)
         .task(id: NotificationInput(tasks: document.file.tasks, key: notificationKey)) {
             await scheduleNotifications()
@@ -124,22 +136,38 @@ struct ContentView: View {
 
     private var taskList: some View {
         var tasks = currentFilter.apply(to: document.file.tasks)
-        // Keep the task whose popover is open, so an edit that moves it out of this list
-        // (marking it done in Today, switching it to an event) doesn't close the popover under the cursor.
+        // Keep the expanded task, so an edit that moves it out of this list
+        // (marking it done in Today, switching it to an event) doesn't close it under the cursor.
         if let id = detailTaskID, !tasks.contains(where: { $0.id == id }),
            let open = document.file.tasks.first(where: { $0.id == id }) {
             tasks.append(open.currentOccurrence())
             tasks.sort(by: TaskFilter.displayOrder)
         }
+        if let frozenOrder {
+            // Tasks added meanwhile keep their sorted place after the ones on screen.
+            let positions = Dictionary(frozenOrder.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
+            tasks = tasks.enumerated()
+                .sorted { (positions[$0.element.id] ?? frozenOrder.count + $0.offset) < (positions[$1.element.id] ?? frozenOrder.count + $1.offset) }
+                .map(\.element)
+        }
         return ScrollViewReader { proxy in
             List(selection: $selection) {
                 ForEach(tasks) { task in
-                    TaskRow(task: $document.file.tasks[id: task.id], occurrence: task) {
-                        detailTaskID = task.id
-                    }
-                        .popover(isPresented: detailsShown(task.id), arrowEdge: .trailing) {
-                            TaskDetailView(task: $document.file.tasks[id: task.id])
+                    TaskRow(
+                        task: $document.file.tasks[id: task.id],
+                        occurrence: task,
+                        isExpanded: detailTaskID == task.id,
+                        caret: caretTarget,
+                        onOpen: { expand(task.id, caret: $0) },
+                        onClose: { byKeyboard in
+                            let id = task.id
+                            // A click outside may have opened another task already.
+                            guard detailTaskID == id else { return }
+                            expand(nil)
+                            // Esc leaves the task selected, so Space and Delete act on it.
+                            if byKeyboard { selection = [id] } else { selection.remove(id) }
                         }
+                    )
                         .contextMenu {
                             if !task.isEvent {
                                 Button(task.done ? "Mark as Not Done" : "Mark as Done") {
@@ -157,21 +185,19 @@ struct ContentView: View {
                 guard let id = revealID else { return }
                 await Task.yield()
                 proxy.scrollTo(id, anchor: .center)
-                // Let the row settle on screen before a popover attaches to it.
+                // Let the row settle on screen before it expands.
                 try? await Task.sleep(for: .milliseconds(150))
                 guard !Task.isCancelled else { return }
-                detailTaskID = id
+                expand(id, caret: revealCaret)
                 revealID = nil
             }
             .onChange(of: selection) { _, newValue in
-                // Backs up the tap gesture: a plain click that selects one task opens its details.
-                // Programmatic selections (new task, palette) go through `revealID` instead.
-                guard revealID == nil, newValue.count == 1, let id = newValue.first,
-                      let event = NSApp.currentEvent,
-                      event.type == .leftMouseDown || event.type == .leftMouseUp,
-                      event.modifierFlags.isDisjoint(with: [.command, .shift])
+                // Selecting another task, such as with ⌘1–⌘9, closes the expanded row. Clicks are left to
+                // `TaskRow`: its tap gesture opens the clicked task, and a click elsewhere closes the row.
+                let isClick = [.leftMouseDown, .leftMouseUp].contains(NSApp.currentEvent?.type)
+                guard revealID == nil, !isClick, let id = detailTaskID, !newValue.isEmpty, !newValue.contains(id)
                 else { return }
-                detailTaskID = id
+                expand(nil)
             }
             .background {
                 // ⌘1–⌘9 select the task at that position. The Calendar uses ⌘1/⌘2 for Month/Week instead.
@@ -221,6 +247,25 @@ struct ContentView: View {
         proxy.scrollTo(tasks[index].id)
     }
 
+    /// Expands a list row, or closes the expanded one when `id` is nil.
+    private func expand(_ id: TaskItem.ID?, caret: CaretTarget = .selectedTitle) {
+        if id != nil, frozenOrder == nil {
+            frozenOrder = currentFilter.apply(to: document.file.tasks).map(\.id)
+        }
+        // Not animated here: the List would pass the animation to its table, which then fades the
+        // whole row in as if reloading it, and the title and checkbox blink. `TaskRow` fades in its fields.
+        caretTarget = caret
+        detailTaskID = id
+
+        guard id == nil, frozenOrder != nil else { return }
+        // Re-sort once the row has closed. Doing both at once leaves the List with stale row heights.
+        Task {
+            try? await Task.sleep(for: .milliseconds(200))
+            guard detailTaskID == nil else { return }
+            withAnimation(.easeOut(duration: 0.15)) { frozenOrder = nil }
+        }
+    }
+
     private func detailsShown(_ id: TaskItem.ID) -> Binding<Bool> {
         Binding(
             get: { detailTaskID == id },
@@ -246,14 +291,15 @@ struct ContentView: View {
         }
     }
 
-    /// Opens a task's popover once its row or chip is on screen.
-    private func openDetails(_ id: TaskItem.ID) {
+    /// Opens a task's popover or expands its row once the chip or row is on screen.
+    private func openDetails(_ id: TaskItem.ID, caret: CaretTarget = .selectedTitle) {
         if destination == .calendar {
             Task {
                 try? await Task.sleep(for: .milliseconds(150))
                 detailTaskID = id
             }
         } else {
+            revealCaret = caret
             revealID = id
         }
     }
@@ -285,7 +331,7 @@ struct ContentView: View {
                 destination = .filter(.all)
             }
             selection = [task.id]
-            openDetails(task.id)
+            openDetails(task.id, caret: .title((task.title as NSString).length))
         }
     }
 
@@ -340,7 +386,7 @@ struct ContentView: View {
     private func delete(_ ids: Set<TaskItem.ID>) {
         guard !ids.isEmpty else { return }
         if let detailTaskID, ids.contains(detailTaskID) {
-            self.detailTaskID = nil
+            expand(nil)
         }
         document.file.tasks.removeAll { ids.contains($0.id) }
         selection.subtract(ids)
