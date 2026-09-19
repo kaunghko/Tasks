@@ -169,8 +169,6 @@ struct TaskRow: View {
                 .font(.callout)
             }
 
-            NotesEditor(task: $task, isInline: true, initialCaret: notesCaret)
-
             Form {
                 TaskKindPicker(task: $task)
                     .pickerStyle(.segmented)
@@ -185,6 +183,15 @@ struct TaskRow: View {
             }
             .formStyle(.columns)
             .controlSize(.small)
+
+            // A faint box, so the notes and subtasks read as a place to type even when empty.
+            VStack(alignment: .leading, spacing: 6) {
+                NotesEditor(task: $task, isInline: true, initialCaret: notesCaret)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.primary.opacity(0.05), in: .rect(cornerRadius: 6))
             .padding(.top, 4)
         }
     }

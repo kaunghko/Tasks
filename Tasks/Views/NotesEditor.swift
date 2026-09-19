@@ -40,7 +40,7 @@ struct NotesEditor: View {
     @ViewBuilder
     private var notesField: some View {
         if isInline {
-            TextField("Notes", text: $task.notes, prompt: Text("Notes"), axis: .vertical)
+            TextField("Notes", text: $task.notes, prompt: Text("Notes, or - [ ] for a subtask"), axis: .vertical)
                 .textFieldStyle(.plain)
                 .font(.callout)
                 .foregroundStyle(.secondary)
