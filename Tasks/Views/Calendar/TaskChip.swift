@@ -11,6 +11,8 @@ struct TaskChip: View {
     /// The calendar day this chip sits on. An event that started on an earlier day shows no start time there.
     var day: Date?
     var isDraggable = true
+    /// False where the view around the chip presents its details instead, such as the Week view's hour grid.
+    var presentsDetails = true
 
     static let height: CGFloat = 18
 
@@ -74,7 +76,7 @@ struct TaskChip: View {
                 actions.delete([task.id])
             }
         }
-        .popover(isPresented: actions.detailsShown(task.id), arrowEdge: .trailing) {
+        .popover(isPresented: presentsDetails ? actions.detailsShown(task.id) : .constant(false), arrowEdge: .trailing) {
             TaskDetailView(task: $task)
         }
         .help(task.title)

@@ -184,14 +184,16 @@ private struct DayTimeline: View {
                     let columnWidth = width / CGFloat(placement.columnCount)
                     let height = CGFloat(placement.endMinute - placement.startMinute) / 60 * hourHeight
                     let item = items.first { $0.id == placement.id }
-                    Group {
+                    // A ZStack rather than a Group, so the popover below attaches once to the slot.
+                    ZStack {
                         if item?.isEvent == false {
                             TaskChip(
                                 task: $tasks[id: placement.id],
                                 occurrence: item,
                                 isSelected: selection.contains(placement.id),
                                 actions: actions,
-                                day: day
+                                day: day,
+                                presentsDetails: false
                             )
                         } else {
                             EventBlock(
@@ -204,6 +206,11 @@ private struct DayTimeline: View {
                         }
                     }
                     .frame(width: max(columnWidth - 2, 0), height: max(height - 2, 0), alignment: .top)
+                    // On the slot rather than the chip or block inside it, so switching between task
+                    // and event keeps the popover open and moves it with the item.
+                    .popover(isPresented: actions.detailsShown(placement.id), arrowEdge: .trailing) {
+                        TaskDetailView(task: $tasks[id: placement.id])
+                    }
                     // Padding rather than offset, so the details popover points at the block itself.
                     .padding(.leading, CGFloat(placement.column) * columnWidth + 1)
                     .padding(.top, CGFloat(placement.startMinute) / 60 * hourHeight + 1)
@@ -383,9 +390,6 @@ private struct EventBlock: View {
             Button("Delete", role: .destructive) {
                 actions.delete([task.id])
             }
-        }
-        .popover(isPresented: actions.detailsShown(task.id), arrowEdge: .trailing) {
-            TaskDetailView(task: $task)
         }
         .help([title, shown.timeRangeLabel, task.recurrence?.summary].compactMap { $0 }.joined(separator: "\n"))
     }
